@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../../context/AppContext';
 import {
   Calendar,
   Sparkles,
@@ -30,11 +30,11 @@ import { CertificateSystem } from './CertificateSystem';
 import { EventAnalytics } from './EventAnalytics';
 import { AIAssistantChat } from './AIAssistantChat';
 
-interface OrganiserDashboardProps {
+interface OrganizerDashboardProps {
   onOpenVerificationModal: (certId: string) => void;
 }
 
-export const OrganiserDashboard: React.FC<OrganiserDashboardProps> = ({
+export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
   onOpenVerificationModal,
 }) => {
   const {

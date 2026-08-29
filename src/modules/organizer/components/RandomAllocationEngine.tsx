@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { EventItem, PanelAllocation, PanelMember } from '../../types';
+import { useApp } from '../../../context/AppContext';
+import { EventItem, PanelAllocation, PanelMember } from '../../../types';
 import {
   Shuffle,
   Sparkles,

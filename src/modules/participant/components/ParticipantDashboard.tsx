@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { EventItem, Registration, Certificate } from '../../types';
+import { useApp } from '../../../context/AppContext';
+import { EventItem, Registration, Certificate } from '../../../types';
 import {
   GraduationCap,
   Calendar,
@@ -21,11 +21,11 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-interface StudentDashboardProps {
+interface ParticipantDashboardProps {
   onOpenVerificationModal: (certId: string) => void;
 }
 
-export const StudentDashboard: React.FC<StudentDashboardProps> = ({
+export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
   onOpenVerificationModal,
 }) => {
   const {

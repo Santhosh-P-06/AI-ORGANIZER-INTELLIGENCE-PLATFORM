@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../../context/AppContext';
 import {
   EventItem,
   CertificateTemplate,
   CandidateBatchUploadItem,
   EmailDispatchConfig,
-} from '../../types';
+} from '../../../types';
 import {
   Award,
   Sparkles,
