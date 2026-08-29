@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../../context/AppContext';
-import { EventItem } from '../../types';
+import { useApp } from '../../../context/AppContext';
+import { EventItem } from '../../../types';
 import {
   BarChart3,
   Sparkles,

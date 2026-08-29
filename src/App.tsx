@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
-import { Header } from './components/common/Header';
+import { Header } from './shared/components';
 import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/auth/LoginPage';
 import { CertificateVerificationView } from './components/verify/CertificateVerificationView';
-import { OrganiserDashboard } from './components/organiser/OrganiserDashboard';
-import { VolunteerDashboard } from './components/volunteer/VolunteerDashboard';
-import { StudentDashboard } from './components/student/StudentDashboard';
+import { OrganizerDashboard } from './modules/organizer';
+import { VolunteerDashboard } from './modules/volunteer';
+import { ParticipantDashboard } from './modules/participant';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 
 const AppContent: React.FC = () => {
@@ -54,13 +54,13 @@ const AppContent: React.FC = () => {
         ) : (
           <>
             {currentRole === 'ORGANISER' && (
-              <OrganiserDashboard
+              <OrganizerDashboard
                 onOpenVerificationModal={(certId) => handleOpenVerification(certId)}
               />
             )}
             {currentRole === 'VOLUNTEER' && <VolunteerDashboard />}
             {currentRole === 'STUDENT' && (
-              <StudentDashboard
+              <ParticipantDashboard
                 onOpenVerificationModal={(certId) => handleOpenVerification(certId)}
               />
             )}

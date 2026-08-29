@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { EventItem, EventType, FormField, AgendaItem } from '../../types';
+import { useApp } from '../../../context/AppContext';
+import { EventItem, EventType, FormField, AgendaItem } from '../../../types';
 import {
   X,
   Sparkles,

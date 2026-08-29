@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { EventItem, Registration } from '../../types';
+import { useApp } from '../../../context/AppContext';
+import { EventItem, Registration } from '../../../types';
 import {
   Activity,
   CheckCircle2,
