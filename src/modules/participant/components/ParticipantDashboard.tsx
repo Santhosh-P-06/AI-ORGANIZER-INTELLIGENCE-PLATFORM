@@ -25,6 +25,11 @@ import {
   History,
   Check,
   UserCheck,
+  Info,
+  Eye,
+  Mail,
+  Phone,
+  Layers,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -48,6 +53,7 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
 
   const [activeTab, setActiveTab] = useState<'EXPLORE' | 'MY_EVENTS' | 'MY_CERTS'>('EXPLORE');
   const [selectedEventForReg, setSelectedEventForReg] = useState<EventItem | null>(null);
+  const [selectedEventForDetails, setSelectedEventForDetails] = useState<EventItem | null>(null);
   const [formResponses, setFormResponses] = useState<Record<string, any>>({});
   const [regError, setRegError] = useState<string | null>(null);
   const [regSuccess, setRegSuccess] = useState<string | null>(null);
@@ -74,14 +80,29 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
 
   const handleOpenRegistration = (event: EventItem) => {
     setSelectedEventForReg(event);
-    setFormResponses({
-      f_name: currentUser?.name || '',
-      f_roll: currentUser?.studentRollNo || '',
-      f_email: currentUser?.email || '',
-      f_phone: currentUser?.phone || '',
-      f_dept: currentUser?.department || 'Computer Science & Engineering',
-      f_year: currentUser?.year || '4th Year (Senior)',
-    });
+    // Pre-populate standard fields from currentUser if present
+    const initialResponses: Record<string, string> = {};
+    if (currentUser) {
+      event.registrationForm.forEach((f) => {
+        const idLower = f.id.toLowerCase();
+        const labelLower = f.label.toLowerCase();
+        if (idLower === 'f_name' || labelLower.includes('student name') || labelLower.includes('full name')) {
+          initialResponses[f.id] = currentUser.name || '';
+        } else if (idLower === 'f_roll' || labelLower.includes('roll') || labelLower.includes('registration number')) {
+          initialResponses[f.id] = currentUser.studentRollNo || '';
+        } else if (idLower === 'f_email' || labelLower.includes('email')) {
+          initialResponses[f.id] = currentUser.email || '';
+        } else if (idLower === 'f_phone' || labelLower.includes('phone') || labelLower.includes('mobile')) {
+          initialResponses[f.id] = currentUser.phone || '';
+        } else if (idLower === 'f_dept' || labelLower.includes('department') || labelLower.includes('branch')) {
+          initialResponses[f.id] = currentUser.department || '';
+        } else if (idLower === 'f_year' || labelLower.includes('year')) {
+          initialResponses[f.id] = currentUser.year || '';
+        }
+      });
+    }
+
+    setFormResponses(initialResponses);
     setRegError(null);
     setRegSuccess(null);
   };
@@ -90,9 +111,28 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
     e.preventDefault();
     if (!selectedEventForReg) return;
 
-    const submittedRoll = formResponses.f_roll || formResponses.rollNumber || currentUser?.studentRollNo;
-    const submittedName = formResponses.f_name || formResponses.studentName || currentUser?.name;
-    const submittedEmail = formResponses.f_email || formResponses.email || currentUser?.email;
+    // Helper to find response value by multiple possible keys / labels
+    const findFieldVal = (patterns: string[]) => {
+      for (const [key, val] of Object.entries(formResponses)) {
+        const field = selectedEventForReg.registrationForm.find(f => f.id === key);
+        const kLower = key.toLowerCase();
+        const lLower = field?.label.toLowerCase() || '';
+        if (patterns.some(p => kLower.includes(p) || lLower.includes(p))) {
+          if (val && String(val).trim()) return String(val).trim();
+        }
+      }
+      return undefined;
+    };
+
+    const submittedName = findFieldVal(['f_name', 'student name', 'full name']) || currentUser?.name || 'Registered Student';
+    const submittedRoll = findFieldVal(['f_roll', 'roll', 'registration_number', 'reg_no']) || currentUser?.studentRollNo;
+    const submittedEmail = findFieldVal(['f_email', 'email']) || currentUser?.email || 'student@college.edu';
+    const submittedPhone = findFieldVal(['f_phone', 'phone', 'mobile', 'contact']) || currentUser?.phone || '+91 99000 11223';
+    const submittedDept = findFieldVal(['f_dept', 'department', 'branch']) || currentUser?.department || 'Computer Science & Engineering';
+    const submittedYear = findFieldVal(['f_year', 'year']) || currentUser?.year || '1st Year';
+    const submittedSection = findFieldVal(['f_section', 'section', 'sec']) || currentUser?.section || 'Sec-A';
+    const submittedTeamName = findFieldVal(['f_team_name', 'team_name', 'team name', 'squad']);
+    const submittedTeamMembersRaw = findFieldVal(['f_team_members', 'team_members', 'team members', 'members']);
 
     const res = registerStudent(
       selectedEventForReg.id,
@@ -100,10 +140,12 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
         studentName: submittedName,
         rollNumber: submittedRoll,
         email: submittedEmail,
-        phone: formResponses.f_phone || currentUser?.phone,
-        department: formResponses.f_dept || currentUser?.department,
-        year: formResponses.f_year || currentUser?.year,
-        section: formResponses.f_section || currentUser?.section,
+        phone: submittedPhone,
+        department: submittedDept,
+        year: submittedYear,
+        section: submittedSection,
+        teamName: submittedTeamName,
+        teamMembers: submittedTeamMembersRaw ? submittedTeamMembersRaw.split('\n').map(s => s.trim()).filter(Boolean) : undefined,
       },
       formResponses
     );
@@ -285,9 +327,20 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
                           </div>
                         </div>
 
-                        <div className="text-right">
-                          <span className="text-[10px] text-slate-400 font-mono block">Roster Reference ID</span>
-                          <span className="font-mono text-xs font-bold text-sky-500">{reg.id}</span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEventForDetails(event)}
+                            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 hover:bg-slate-500/10 transition-colors cursor-pointer"
+                            style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                          >
+                            <Eye className="w-3.5 h-3.5 text-sky-500" />
+                            <span>Overview & Agenda</span>
+                          </button>
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-400 font-mono block">Roster Reference ID</span>
+                            <span className="font-mono text-xs font-bold text-sky-500">{reg.id}</span>
+                          </div>
                         </div>
                       </div>
 
@@ -467,12 +520,17 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
                         </span>
                       </div>
 
-                      <h3 className="font-display font-bold text-base line-clamp-2" style={{ color: 'var(--text-primary)' }}>
-                        {evt.title}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-2 line-clamp-3 leading-relaxed">
-                        {evt.description}
-                      </p>
+                      <div
+                        onClick={() => setSelectedEventForDetails(evt)}
+                        className="cursor-pointer group"
+                      >
+                        <h3 className="font-display font-bold text-base line-clamp-2 group-hover:text-sky-500 transition-colors" style={{ color: 'var(--text-primary)' }}>
+                          {evt.title}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-2 line-clamp-3 leading-relaxed">
+                          {evt.description}
+                        </p>
+                      </div>
 
                       <div className="space-y-2 text-xs mt-4" style={{ color: 'var(--text-muted)' }}>
                         <div className="flex items-center gap-2">
@@ -490,24 +548,34 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t" style={{ borderColor: 'var(--border-default)' }}>
+                    <div className="pt-4 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-default)' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEventForDetails(evt)}
+                        className="flex-1 py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-all hover:bg-slate-500/10 cursor-pointer"
+                        style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                      >
+                        <Eye className="w-4 h-4 text-sky-500" />
+                        <span>Overview & Agenda</span>
+                      </button>
+
                       {isRegistered ? (
                         <button
                           type="button"
                           onClick={() => setActiveTab('MY_EVENTS')}
-                          className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 cursor-pointer"
+                          className="flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 cursor-pointer"
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          <span>Registered • View Roster</span>
+                          <span>Registered</span>
                         </button>
                       ) : (
                         <button
                           type="button"
                           onClick={() => handleOpenRegistration(evt)}
-                          className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-lg shadow-sky-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-lg shadow-sky-600/30 transition-all flex items-center justify-center gap-1 cursor-pointer"
                         >
-                          <span>Register for Event</span>
-                          <ChevronRight className="w-4 h-4" />
+                          <span>Register</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -659,6 +727,265 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* READ-ONLY EVENT OVERVIEW & AGENDA MODAL */}
+      {selectedEventForDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <div
+            className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden animate-scale-in my-auto"
+            style={{
+              backgroundColor: 'var(--surface-base)',
+              borderColor: 'var(--border-default)',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              className="p-5 sm:p-6 border-b flex items-start justify-between gap-4 sticky top-0 z-10"
+              style={{
+                backgroundColor: 'var(--surface-raised)',
+                borderColor: 'var(--border-default)',
+              }}
+            >
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                    style={{
+                      backgroundColor: 'var(--role-student-bg)',
+                      color: 'var(--role-student-color)',
+                    }}
+                  >
+                    {selectedEventForDetails.type}
+                  </span>
+                  <span className="text-xs text-slate-400">•</span>
+                  <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                    {selectedEventForDetails.organizingDepartment}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
+                    {selectedEventForDetails.status}
+                  </span>
+                </div>
+
+                <h2 className="text-xl sm:text-2xl font-display font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                  {selectedEventForDetails.title}
+                </h2>
+
+                <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-xs pt-1" style={{ color: 'var(--text-muted)' }}>
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-sky-500" />
+                    <span>{selectedEventForDetails.date} ({selectedEventForDetails.startTime} - {selectedEventForDetails.endTime})</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{selectedEventForDetails.venue}</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Team: {selectedEventForDetails.teamSizeMin}-{selectedEventForDetails.teamSizeMax} Members</span>
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedEventForDetails(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-500/10 transition-colors cursor-pointer"
+                title="Close"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-6 text-xs">
+              
+              {/* Quick Highlights / Stat Pills */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-2xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Evaluation Rounds</span>
+                  <span className="text-sm font-extrabold mt-1" style={{ color: 'var(--text-primary)' }}>{selectedEventForDetails.numRounds || 1} Round(s)</span>
+                </div>
+                <div className="p-3.5 rounded-2xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Jury Panels</span>
+                  <span className="text-sm font-extrabold mt-1" style={{ color: 'var(--text-primary)' }}>{selectedEventForDetails.numPanels || 1} Active Panels</span>
+                </div>
+                <div className="p-3.5 rounded-2xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Registration Deadline</span>
+                  <span className="text-xs font-bold text-amber-500 mt-1">{selectedEventForDetails.registrationDeadline || 'Till Start Date'}</span>
+                </div>
+                <div className="p-3.5 rounded-2xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Max Capacity</span>
+                  <span className="text-sm font-extrabold mt-1 text-sky-500">{selectedEventForDetails.maxStudents} Students</span>
+                </div>
+              </div>
+
+              {/* Section 1: Overview & Description */}
+              <div className="p-5 rounded-2xl border space-y-3" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 text-sky-500" />
+                  <h3 className="font-bold text-sm tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                    Event Overview & Summary
+                  </h3>
+                </div>
+                <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: 'var(--text-secondary)' }}>
+                  {selectedEventForDetails.description}
+                </p>
+              </div>
+
+              {/* Section 2: Minute-by-Minute Agenda (READ ONLY) */}
+              <div className="p-5 rounded-2xl border space-y-4" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-indigo-500" />
+                    <h3 className="font-bold text-sm tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                      Official Event Agenda & Schedule
+                    </h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    Read-Only Schedule
+                  </span>
+                </div>
+
+                {(!selectedEventForDetails.agenda || selectedEventForDetails.agenda.length === 0) ? (
+                  <div className="p-8 text-center rounded-xl border border-dashed border-slate-700/50 text-slate-400">
+                    <Calendar className="w-8 h-8 mx-auto mb-2 opacity-40 text-sky-500" />
+                    <p className="font-semibold text-xs">Agenda will be published soon by the event coordinators.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--border-default)' }}>
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+                        <tr className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                          <th className="p-3.5">Time Window</th>
+                          <th className="p-3.5">Scheduled Activity</th>
+                          <th className="p-3.5">Assigned Venue</th>
+                          <th className="p-3.5">Lead / In-Charge</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y" style={{ borderColor: 'var(--border-default)' }}>
+                        {selectedEventForDetails.agenda.map((item, idx) => (
+                          <tr
+                            key={item.id || idx}
+                            className="transition-colors hover:bg-slate-500/5"
+                            style={{ backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--surface-base)' }}
+                          >
+                            <td className="p-3.5 font-mono text-sky-500 font-bold whitespace-nowrap">
+                              {item.time}
+                            </td>
+                            <td className="p-3.5 font-semibold" style={{ color: 'var(--text-primary)' }}>
+                              <div>{item.activity}</div>
+                              {item.description && (
+                                <div className="text-[11px] text-slate-400 font-normal mt-0.5">
+                                  {item.description}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-amber-500 font-medium whitespace-nowrap">
+                              {item.venue}
+                            </td>
+                            <td className="p-3.5 whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded text-[11px] font-medium" style={{ backgroundColor: 'var(--surface-base)', color: 'var(--text-secondary)' }}>
+                                {item.responsiblePerson || 'Organizing Committee'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 3: Rules & Guidelines + Eligibility */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-5 rounded-2xl border space-y-2" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Rules & Code of Conduct
+                  </h4>
+                  <p className="text-xs font-mono whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    {selectedEventForDetails.rules || 'Standard collegiate event rules apply. Maintain academic integrity and decorum.'}
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-2xl border space-y-2" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Eligibility & Selection Criteria
+                  </h4>
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    {selectedEventForDetails.eligibilityCriteria || 'Open to all enrolled collegiate students with valid identity card.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Section 4: Coordinator Contact Info */}
+              <div className="p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center font-bold">
+                    {selectedEventForDetails.coordinatorName ? selectedEventForDetails.coordinatorName.charAt(0) : 'C'}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-semibold uppercase">Faculty / Event Coordinator</span>
+                    <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{selectedEventForDetails.coordinatorName || 'Event Organizing Secretary'}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-4 text-slate-400 text-[11px]">
+                  {selectedEventForDetails.contactEmail && (
+                    <span className="flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-sky-500" /> {selectedEventForDetails.contactEmail}
+                    </span>
+                  )}
+                  {selectedEventForDetails.contactNumber && (
+                    <span className="flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 text-emerald-500" /> {selectedEventForDetails.contactNumber}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 border-t flex flex-wrap items-center justify-between gap-3 sticky bottom-0 z-10" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedEventForDetails(null)}
+                className="px-4 py-2 rounded-xl border font-semibold text-slate-400 hover:text-slate-200 cursor-pointer text-xs"
+                style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
+              >
+                Close Overview
+              </button>
+
+              <div>
+                {myRegistrations.some((r) => r.eventId === selectedEventForDetails.id) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedEventForDetails(null);
+                      setActiveTab('MY_EVENTS');
+                    }}
+                    className="px-5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>You are Registered • View in My Events</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const evtToReg = selectedEventForDetails;
+                      setSelectedEventForDetails(null);
+                      handleOpenRegistration(evtToReg);
+                    }}
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-lg shadow-sky-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Register for Event</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

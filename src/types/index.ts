@@ -42,6 +42,20 @@ export interface FormField {
   defaultValue?: string;
 }
 
+export interface IntelligenceReport {
+  readinessScore: number;
+  timeEfficiency: number;
+  resourceUtilization: number;
+  participantExperience: number;
+  operationalFeasibility: number;
+  risks: string[];
+  recommendations: string[];
+  feasibilityAnalysis?: string;
+  parallelSessionsCount?: number;
+  breaksIncluded?: boolean;
+  conflictsResolved?: string[];
+}
+
 export interface AgendaItem {
   id: string;
   time: string;
@@ -49,6 +63,11 @@ export interface AgendaItem {
   venue: string;
   responsiblePerson: string;
   description?: string;
+  duration?: string;
+  day?: string;
+  participants?: string;
+  resources?: string;
+  sessionType?: 'MAIN' | 'PARALLEL' | 'BREAK' | 'SETUP' | 'BUFFER' | 'EVALUATION' | 'KEYNOTE';
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 }
 
@@ -337,6 +356,9 @@ export interface EventItem {
   rosterFinalizedAt?: string;
   rosterFinalizedBy?: string;
   attendanceSessions?: AttendanceSession[];
+  intelligenceReport?: IntelligenceReport;
+  eventConfig?: Record<string, any>;
+  isMultiDay?: boolean;
 }
 
 export interface NotificationItem {

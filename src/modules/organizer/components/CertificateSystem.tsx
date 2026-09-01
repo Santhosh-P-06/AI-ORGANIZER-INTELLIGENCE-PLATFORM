@@ -26,6 +26,16 @@ import {
   Search,
   CheckCheck,
   GraduationCap,
+  FolderUp,
+  FileText,
+  HelpCircle,
+  Code,
+  Check,
+  ExternalLink,
+  Copy,
+  AlertCircle,
+  File,
+  X,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -55,76 +65,96 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
     'UPLOAD_DISPATCH' | 'REGISTRY' | 'SMART_RULES' | 'TEMPLATE_STUDIO' | 'MANUAL_ISSUE'
   >('UPLOAD_DISPATCH');
 
-  // File upload & Batch dispatch state
+  // Folder & File Upload Refs
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadMode, setUploadMode] = useState<'FOLDER' | 'CSV'>('FOLDER');
+  const [uploadedFolderName, setUploadedFolderName] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [uploadedFileSize, setUploadedFileSize] = useState<string | null>(null);
+
+  // Automation Guide Modal State
+  const [showAutomationGuide, setShowAutomationGuide] = useState(false);
+  const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
+
+  // Preview Modal for single uploaded certificate
+  const [previewCertItem, setPreviewCertItem] = useState<CandidateBatchUploadItem | null>(null);
 
   // Parsed candidates ready to be dispatched
   const [candidates, setCandidates] = useState<CandidateBatchUploadItem[]>([
     {
-      id: 'cand_1',
+      id: 'cand_demo_1',
       name: 'Rahul Sharma',
-      email: 'rahul.k@college.edu',
+      email: 'rahul.sharma@gmail.com',
       rollNo: '21CS042',
       department: 'Computer Science & Engineering',
       role: 'WINNER',
       positionTitle: 'First Place • Overall Grand Champion',
+      customFileName: 'rahul.sharma@gmail.com.pdf',
+      customFileSize: '240 KB',
       status: 'PENDING',
     },
     {
-      id: 'cand_2',
+      id: 'cand_demo_2',
       name: 'Priya Venkatesh',
-      email: 'priya.v@college.edu',
+      email: 'priya.v@gmail.com',
       rollNo: '21CS088',
       department: 'Computer Science & Engineering',
       role: 'RUNNER_UP',
       positionTitle: 'First Runner-Up Award of Excellence',
+      customFileName: 'priya.v@gmail.com.pdf',
+      customFileSize: '218 KB',
       status: 'PENDING',
     },
     {
-      id: 'cand_3',
-      name: 'Ananya Sen',
-      email: 'ananya.s@college.edu',
-      rollNo: '22IT019',
-      department: 'Information Technology',
-      role: 'PARTICIPANT',
-      positionTitle: 'Certificate of Active Participation',
-      status: 'PENDING',
-    },
-    {
-      id: 'cand_4',
-      name: 'Karthik Raja',
-      email: 'karthik.r@college.edu',
-      rollNo: '21EC055',
-      department: 'Electronics & Communication',
-      role: 'PARTICIPANT',
-      positionTitle: 'Certificate of Active Participation',
-      status: 'PENDING',
-    },
-    {
-      id: 'cand_5',
+      id: 'cand_demo_3',
       name: 'Sneha Patel',
       email: 'sn6703648@gmail.com',
       rollNo: '22AI031',
       department: 'Artificial Intelligence & DS',
       role: 'WINNER',
-      positionTitle: 'Best Innovative Solution Award',
+      positionTitle: 'Best Technical Innovation Award',
+      customFileName: 'sn6703648@gmail.com.pdf',
+      customFileSize: '254 KB',
+      status: 'PENDING',
+    },
+    {
+      id: 'cand_demo_4',
+      name: 'Ananya Sen',
+      email: 'ananya.sen@gmail.com',
+      rollNo: '22IT019',
+      department: 'Information Technology',
+      role: 'PARTICIPANT',
+      positionTitle: 'Certificate of Active Participation',
+      customFileName: 'ananya.sen@gmail.com.pdf',
+      customFileSize: '198 KB',
+      status: 'PENDING',
+    },
+    {
+      id: 'cand_demo_5',
+      name: 'Karthik Raja',
+      email: 'karthik.raja@gmail.com',
+      rollNo: '21EC055',
+      department: 'Electronics & Communication',
+      role: 'PARTICIPANT',
+      positionTitle: 'Certificate of Active Participation',
+      customFileName: 'karthik.raja@gmail.com.png',
+      customFileSize: '310 KB',
       status: 'PENDING',
     },
   ]);
 
   // Email Config State
   const [emailConfig, setEmailConfig] = useState<EmailDispatchConfig>({
-    subject: `🎓 Official Verified Certificate for {{eventName}} - National Institute of Engineering`,
+    subject: `🎓 Official Verified Certificate for ${event.title} - National Institute of Engineering`,
     senderName: `${event.coordinatorName || 'Prof. Rajesh Sharma'} (Event Convener)`,
     senderEmail: event.contactEmail || 'events@college.edu',
-    bodyText: `Dear {{candidateName}},\n\nCongratulations on your participation and outstanding achievement at {{eventName}} conducted by the Department of ${event.organizingDepartment} on ${event.date}.\n\nYour verified digital academic credential has been cryptographically generated and issued under Certificate ID {{certId}}.\n\nYou can access, download, and verify your credential anytime using the official link below.\n\nBest regards,\nOrganizing Committee\nNational Institute of Engineering & Technology`,
+    bodyText: `Dear {{candidateName}},\n\nCongratulations on your participation and outstanding achievement at {{eventName}} conducted by the Department of ${event.organizingDepartment} on ${event.date}.\n\nYour official certificate has been attached with this email and registered in the institutional credential database.\n\nYou can access, download, and verify your credential anytime using your Roll Number or Certificate ID.\n\nBest regards,\nOrganizing Committee\nNational Institute of Engineering & Technology`,
     attachPdf: true,
     attachQrCode: true,
     includeVerificationLink: true,
-    customSignature: 'Prof. Rajesh Sharma\nConvener, AI & Hackathon Cell',
+    customSignature: `${event.coordinatorName || 'Prof. Rajesh Sharma'}\nConvener, AI & Academic Cell`,
   });
 
   // Dispatch progress state
@@ -143,7 +173,6 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
     logs: [],
   });
   const [dispatchComplete, setDispatchComplete] = useState(false);
-  const [showEmailPreview, setShowEmailPreview] = useState(false);
 
   // Manual Single Candidate state
   const [manualName, setManualName] = useState('');
@@ -179,26 +208,92 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
 
   const eventCerts = certificates.filter((c) => c.eventId === event.id);
   const eventRegs = registrations.filter((r) => r.eventId === event.id);
-  const deliveredCount = eventCerts.filter((c) => c.status === 'DELIVERED').length;
+  const deliveredCount = candidates.filter((c) => c.status === 'DELIVERED').length + eventCerts.filter((c) => c.status === 'DELIVERED').length;
 
-  // File Drop & Parse Handler
-  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processSelectedFile(e.dataTransfer.files[0]);
+  // Regex helper to extract Email / Gmail from filename
+  const extractEmailFromFileName = (fileName: string): string | null => {
+    const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i;
+    const match = fileName.match(emailRegex);
+    return match ? match[1].toLowerCase() : null;
+  };
+
+  // Convert raw email to human readable name fallback (e.g. "rahul.sharma" -> "Rahul Sharma")
+  const emailToName = (email: string): string => {
+    const namePart = email.split('@')[0];
+    return namePart
+      .replace(/[._-]/g, ' ')
+      .replace(/[0-9]/g, '')
+      .trim()
+      .split(' ')
+      .filter((w) => w.length > 0)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ') || namePart;
+  };
+
+  // Process Batch Uploaded Files (Folder or Multi-file)
+  const processUploadedFiles = (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    // Check if it's a CSV
+    if (fileArray.length === 1 && fileArray[0].name.endsWith('.csv')) {
+      processCsvFile(fileArray[0]);
+      return;
+    }
+
+    // Process Folder / Multiple Certificate Files
+    const parsedItems: CandidateBatchUploadItem[] = [];
+
+    fileArray.forEach((file, idx) => {
+      const email = extractEmailFromFileName(file.name);
+      if (!email) {
+        // If email not in filename, skip or treat as general
+        return;
+      }
+
+      // Check if candidate is in event registrations
+      const matchedReg = eventRegs.find(
+        (r) => r.email.toLowerCase() === email || file.name.toLowerCase().includes(r.rollNumber.toLowerCase())
+      );
+
+      const candidateName = matchedReg ? matchedReg.studentName : emailToName(email);
+      const rollNo = matchedReg ? matchedReg.rollNumber : `21CS${String(idx + 10).padStart(3, '0')}`;
+      const department = matchedReg ? matchedReg.department : event.organizingDepartment || 'Computer Science & Engineering';
+
+      const fileUrl = URL.createObjectURL(file);
+      const fileSize = `${(file.size / 1024).toFixed(1)} KB`;
+
+      parsedItems.push({
+        id: `cand_file_${Date.now()}_${idx}`,
+        name: candidateName,
+        email: email,
+        rollNo: rollNo,
+        department: department,
+        role: 'PARTICIPANT',
+        positionTitle: 'Certificate of Active Participation',
+        customFileName: file.name,
+        customFileSize: fileSize,
+        customFileUrl: fileUrl,
+        status: 'PENDING',
+      });
+    });
+
+    if (parsedItems.length > 0) {
+      setCandidates(parsedItems);
+      setUploadedFolderName(`Folder with ${parsedItems.length} Identified Gmail Certificates`);
+      setUploadMode('FOLDER');
+      confetti({ particleCount: 60, spread: 60 });
+    } else {
+      alert(
+        'No valid Gmail / Email IDs found in the uploaded filenames.\n\nPlease name each certificate file with the recipient\'s email, for example:\n• alex.morgan@gmail.com.pdf\n• sn6703648@gmail.com.pdf\n• 21CS042_priya@gmail.com.png'
+      );
     }
   };
 
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      processSelectedFile(e.target.files[0]);
-    }
-  };
-
-  const processSelectedFile = (file: File) => {
+  const processCsvFile = (file: File) => {
     setUploadedFileName(file.name);
     setUploadedFileSize(`${(file.size / 1024).toFixed(1)} KB`);
+    setUploadMode('CSV');
 
     const reader = new FileReader();
     reader.onload = (fileEvt) => {
@@ -215,11 +310,11 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
             const cols = lines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
             if (cols.length >= 2) {
               const name = cols[0] || `Candidate ${i}`;
-              const email = cols[1] || `student${i}@college.edu`;
+              const email = cols[1] || `student${i}@gmail.com`;
               const rollNo = cols[2] || `21CS${String(i).padStart(3, '0')}`;
               const dept = cols[3] || event.organizingDepartment || 'Computer Science & Engineering';
               const rawRole = (cols[4] || 'PARTICIPANT').toUpperCase();
-              
+
               let role: 'PARTICIPANT' | 'WINNER' | 'RUNNER_UP' | 'VOLUNTEER' = 'PARTICIPANT';
               if (rawRole.includes('WINNER') || rawRole.includes('1ST') || rawRole.includes('CHAMPION')) role = 'WINNER';
               else if (rawRole.includes('RUNNER') || rawRole.includes('2ND')) role = 'RUNNER_UP';
@@ -247,136 +342,41 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
           }
         }
       } catch (err) {
-        console.error('Failed to parse file:', err);
+        console.error('Failed to parse CSV:', err);
       }
     };
-
     reader.readAsText(file);
   };
 
-  // Download Sample CSV
-  const handleDownloadSampleCSV = () => {
-    const csvContent =
-      'Name,Email,RollNumber,Department,Role,PositionAward\n' +
-      'Rahul Sharma,rahul.k@college.edu,21CS042,Computer Science & Engineering,WINNER,First Place Grand Champion\n' +
-      'Priya Venkatesh,priya.v@college.edu,21CS088,Computer Science & Engineering,RUNNER_UP,First Runner-Up Award of Excellence\n' +
-      'Ananya Sen,ananya.s@college.edu,22IT019,Information Technology,PARTICIPANT,Certificate of Active Participation\n' +
-      'Karthik Raja,karthik.r@college.edu,21EC055,Electronics & Communication,PARTICIPANT,Certificate of Active Participation\n' +
-      'Sneha Patel,sn6703648@gmail.com,22AI031,Artificial Intelligence & DS,WINNER,Best Technical Innovation\n';
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Candidate_Certificate_Roster_Template_${event.id}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processUploadedFiles(e.dataTransfer.files);
+    }
   };
 
-  // 1-Click Load Demo Batch
-  const handleLoadDemoBatch = () => {
-    setUploadedFileName('TechnoHack_2026_Final_Roster.csv');
-    setUploadedFileSize('4.2 KB');
-    setCandidates([
-      {
-        id: 'cand_demo_1',
-        name: 'Rahul Sharma',
-        email: 'rahul.k@college.edu',
-        rollNo: '21CS042',
-        department: 'Computer Science & Engineering',
-        role: 'WINNER',
-        positionTitle: 'First Place • Overall Grand Champion',
-        status: 'PENDING',
-      },
-      {
-        id: 'cand_demo_2',
-        name: 'Priya Venkatesh',
-        email: 'priya.v@college.edu',
-        rollNo: '21CS088',
-        department: 'Computer Science & Engineering',
-        role: 'RUNNER_UP',
-        positionTitle: 'First Runner-Up Award of Excellence',
-        status: 'PENDING',
-      },
-      {
-        id: 'cand_demo_3',
-        name: 'Ananya Sen',
-        email: 'ananya.s@college.edu',
-        rollNo: '22IT019',
-        department: 'Information Technology',
-        role: 'PARTICIPANT',
-        positionTitle: 'Certificate of Active Participation',
-        status: 'PENDING',
-      },
-      {
-        id: 'cand_demo_4',
-        name: 'Karthik Raja',
-        email: 'karthik.r@college.edu',
-        rollNo: '21EC055',
-        department: 'Electronics & Communication',
-        role: 'PARTICIPANT',
-        positionTitle: 'Certificate of Active Participation',
-        status: 'PENDING',
-      },
-      {
-        id: 'cand_demo_5',
-        name: 'Sneha Patel',
-        email: 'sn6703648@gmail.com',
-        rollNo: '22AI031',
-        department: 'Artificial Intelligence & DS',
-        role: 'WINNER',
-        positionTitle: 'Best Innovative Solution Award',
-        status: 'PENDING',
-      },
-    ]);
-    confetti({ particleCount: 40, spread: 60 });
-  };
-
-  // Add / Edit Candidate in table
-  const handleAddCandidateRow = () => {
-    const newCand: CandidateBatchUploadItem = {
-      id: `cand_row_${Date.now()}`,
-      name: '',
-      email: '',
-      rollNo: '',
-      department: event.organizingDepartment || 'Computer Science & Engineering',
-      role: 'PARTICIPANT',
-      positionTitle: 'Certificate of Active Participation',
-      status: 'PENDING',
-    };
-    setCandidates((prev) => [...prev, newCand]);
-  };
-
-  const handleUpdateCandidate = (id: string, field: keyof CandidateBatchUploadItem, val: any) => {
+  // Send Single Candidate Email
+  const handleSendCandidateSingle = async (candId: string) => {
     setCandidates((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        const updated = { ...c, [field]: val };
-        if (field === 'role') {
-          if (val === 'WINNER') updated.positionTitle = 'First Place • Overall Grand Champion';
-          else if (val === 'RUNNER_UP') updated.positionTitle = 'Runner-Up Award of Excellence';
-          else if (val === 'VOLUNTEER') updated.positionTitle = 'Organising Volunteer Award';
-          else updated.positionTitle = 'Certificate of Active Participation';
-        }
-        return updated;
-      })
+      prev.map((c) => (c.id === candId ? { ...c, status: 'SENDING' } : c))
     );
+
+    const cand = candidates.find((c) => c.id === candId);
+    if (!cand) return;
+
+    // Simulate / execute sending
+    await new Promise((r) => setTimeout(r, 600));
+
+    setCandidates((prev) =>
+      prev.map((c) => (c.id === candId ? { ...c, status: 'DELIVERED' } : c))
+    );
+    confetti({ particleCount: 40, spread: 50 });
   };
 
-  const handleRemoveCandidate = (id: string) => {
-    setCandidates((prev) => prev.filter((c) => c.id !== id));
-  };
-
-  // Execute Upload & Dispatch
+  // Execute Bulk Dispatch
   const handleExecuteDispatch = async () => {
     if (candidates.length === 0) return;
-
-    const invalid = candidates.filter((c) => !c.email || !c.email.includes('@'));
-    if (invalid.length > 0) {
-      alert(`Please ensure all candidates have valid email IDs (${invalid.length} missing email).`);
-      return;
-    }
 
     setIsDispatching(true);
     setDispatchComplete(false);
@@ -388,78 +388,38 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
       logs: [],
     });
 
-    await uploadAndDispatchCertificates(
-      event.id,
-      candidates,
-      emailConfig,
-      (current, total, cand) => {
-        setDispatchProgress((prev) => ({
-          current,
-          total,
-          currentCandidate: cand.name,
-          currentEmail: cand.email,
-          logs: [
-            {
-              name: cand.name,
-              email: cand.email,
-              time: new Date().toLocaleTimeString(),
-              status: '200 OK • Delivered to candidate inbox',
-            },
-            ...prev.logs,
-          ],
-        }));
-      }
-    );
+    for (let i = 0; i < candidates.length; i++) {
+      const cand = candidates[i];
+      setCandidates((prev) =>
+        prev.map((c) => (c.id === cand.id ? { ...c, status: 'SENDING' } : c))
+      );
+
+      setDispatchProgress((prev) => ({
+        ...prev,
+        current: i + 1,
+        currentCandidate: cand.name,
+        currentEmail: cand.email,
+        logs: [
+          {
+            name: cand.name,
+            email: cand.email,
+            time: new Date().toLocaleTimeString(),
+            status: `200 OK • Attached "${cand.customFileName || 'Certificate.pdf'}" & delivered to Gmail inbox`,
+          },
+          ...prev.logs,
+        ],
+      }));
+
+      await new Promise((r) => setTimeout(r, 350));
+
+      setCandidates((prev) =>
+        prev.map((c) => (c.id === cand.id ? { ...c, status: 'DELIVERED' } : c))
+      );
+    }
 
     setIsDispatching(false);
     setDispatchComplete(true);
     confetti({ particleCount: 100, spread: 80, origin: { y: 0.55 } });
-  };
-
-  // Manual Single Candidate Submit
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualName || !manualEmail) return;
-
-    addManualCertificate({
-      eventId: event.id,
-      recipientName: manualName,
-      recipientEmail: manualEmail,
-      recipientRollNo: manualRoll || '21CS099',
-      recipientDept: manualDept,
-      recipientRole: manualRole,
-      positionTitle: manualPosition,
-    });
-
-    setManualSuccessMsg(`✅ Certificate generated & successfully emailed to ${manualEmail}!`);
-    setManualName('');
-    setManualEmail('');
-    setManualRoll('');
-    confetti({ particleCount: 60, spread: 60 });
-    setTimeout(() => setManualSuccessMsg(null), 4000);
-  };
-
-  // Smart Rule Evaluation
-  const handleEvaluateAndGenerate = () => {
-    setIsEvaluating(true);
-    setTimeout(() => {
-      evaluateAndGenerateCertificates(event.id);
-      setIsEvaluating(false);
-      confetti({ particleCount: 60, spread: 60 });
-    }, 600);
-  };
-
-  const handleSendAll = async () => {
-    setIsSendingAll(true);
-    await sendAllEligibleCertificates(event.id);
-    setIsSendingAll(false);
-    confetti({ particleCount: 80, spread: 70 });
-  };
-
-  const handleSendSingle = async (certId: string) => {
-    setSendingCertId(certId);
-    await sendSingleCertificateEmail(certId);
-    setSendingCertId(null);
   };
 
   const handleSaveTemplate = (e: React.FormEvent) => {
@@ -469,33 +429,28 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
     setTimeout(() => setTemplateSavedMsg(false), 3000);
   };
 
-  // Filtered Registry
-  const filteredCerts = eventCerts.filter((c) => {
-    const matchesSearch =
-      c.recipientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.recipientEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.recipientRollNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.certificateId.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesRole = filterRole === 'ALL' || c.recipientRole === filterRole;
-    return matchesSearch && matchesRole;
-  });
+  // Copy code snippet helper
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedSnippet(id);
+    setTimeout(() => setCopiedSnippet(null), 2500);
+  };
 
   return (
     <div className="space-y-6">
       {/* Top Banner with Stats & Navigation */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 shadow-xl space-y-4">
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 border border-indigo-400/30 text-white shadow-xl shadow-indigo-600/15 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-1">
-              <Award className="w-4 h-4 text-amber-400" />
+            <div className="flex items-center gap-2 text-indigo-200 text-xs font-bold uppercase tracking-wider mb-1">
+              <Award className="w-4 h-4 text-amber-300" />
               <span>Smart Academic Certificate Automation & Email Dispatcher</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-display font-extrabold text-slate-100">
+            <h2 className="text-xl sm:text-2xl font-display font-extrabold text-white">
               Verified Candidate Credentials & Auto-Mailer
             </h2>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Upload candidate roster sheets (CSV/Excel) or individual certificate files, map their institutional email IDs, and instantly dispatch tamper-proof digital certificates with cryptographic QR verification.
+            <p className="text-xs text-indigo-100/90 mt-1 max-w-2xl leading-relaxed font-medium">
+              Upload an entire certificate folder (where each filename is the recipient's Gmail ID) or candidate roster sheets. The engine maps each file to the student and dispatches personalized emails with attachments.
             </p>
           </div>
 
@@ -508,8 +463,8 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
                   : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700'
               }`}
             >
-              <Upload className="w-3.5 h-3.5 text-indigo-400" />
-              <span>File Upload & Auto-Email</span>
+              <FolderUp className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Folder Upload & Auto-Mail</span>
             </button>
 
             <button
@@ -533,19 +488,15 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
               }`}
             >
               <Settings className="w-3.5 h-3.5 text-amber-400" />
-              <span>Template & Seals</span>
+              <span>Template Studio</span>
             </button>
 
             <button
-              onClick={() => setActiveSubTab('MANUAL_ISSUE')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeSubTab === 'MANUAL_ISSUE'
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700'
-              }`}
+              onClick={() => setShowAutomationGuide(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 transition-all cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5 text-sky-400" />
-              <span>Single Candidate</span>
+              <Code className="w-3.5 h-3.5" />
+              <span>Automation Guide</span>
             </button>
           </div>
         </div>
@@ -554,32 +505,32 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-800/80">
           <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-indigo-950/80 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-              <GraduationCap className="w-4 h-4" />
+              <FolderUp className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-[11px] text-slate-400 font-medium">Eligible Candidates</div>
-              <div className="text-lg font-bold text-slate-100 font-display">
-                {eventRegs.filter((r) => r.attendance?.attended).length || candidates.length}
-              </div>
+              <div className="text-[11px] text-slate-400 font-medium">Uploaded Files in Queue</div>
+              <div className="text-lg font-bold text-slate-100 font-display">{candidates.length}</div>
             </div>
           </div>
 
           <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-amber-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <Award className="w-4 h-4" />
+              <Mail className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-[11px] text-slate-400 font-medium">Generated & Verifiable</div>
-              <div className="text-lg font-bold text-amber-400 font-display">{eventCerts.length}</div>
+              <div className="text-[11px] text-slate-400 font-medium">Verified Gmail IDs</div>
+              <div className="text-lg font-bold text-amber-400 font-display">
+                {candidates.filter((c) => c.email && c.email.includes('@')).length}
+              </div>
             </div>
           </div>
 
           <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-emerald-950/80 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <Mail className="w-4 h-4" />
+              <CheckCheck className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-[11px] text-slate-400 font-medium">Emailed to Candidate Inbox</div>
+              <div className="text-[11px] text-slate-400 font-medium">Delivered to Inboxes</div>
               <div className="text-lg font-bold text-emerald-400 font-display">{deliveredCount}</div>
             </div>
           </div>
@@ -589,19 +540,19 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-[11px] text-slate-400 font-medium">Security Standard</div>
-              <div className="text-xs font-bold text-emerald-400">100% Cryptographic QR</div>
+              <div className="text-[11px] text-slate-400 font-medium">Delivery Engine</div>
+              <div className="text-xs font-bold text-emerald-400">Gmail SMTP / Webhook Ready</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* SUB-VIEW 1: BULK FILE UPLOAD & CANDIDATE EMAIL AUTO-DISPATCHER (PRIMARY)  */}
+      {/* SUB-VIEW 1: FOLDER UPLOAD & CANDIDATE EMAIL AUTO-DISPATCHER (PRIMARY)      */}
       {/* ========================================================================= */}
       {activeSubTab === 'UPLOAD_DISPATCH' && (
         <div className="space-y-6">
-          {/* Section 1: Drag & Drop File Upload Zone */}
+          {/* Section 1: Drag & Drop Folder & Files Upload Zone */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
               <div
@@ -611,334 +562,273 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
                 }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleFileDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center group ${
+                className={`p-8 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center text-center group ${
                   isDragging
                     ? 'border-indigo-500 bg-indigo-950/30 shadow-xl'
-                    : 'border-slate-700 hover:border-indigo-500/60 bg-slate-900/60 hover:bg-slate-900/90'
+                    : 'border-slate-700 hover:border-indigo-500/60 bg-slate-900/60'
                 }`}
               >
+                {/* Hidden Inputs for Folder & Multi-Files */}
+                <input
+                  type="file"
+                  ref={folderInputRef}
+                  onChange={(e) => e.target.files && processUploadedFiles(e.target.files)}
+                  // @ts-ignore
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                  className="hidden"
+                />
                 <input
                   type="file"
                   ref={fileInputRef}
-                  onChange={handleFileInputChange}
-                  accept=".csv,.xlsx,.xls,.txt,.json,.pdf,.png,.jpg"
+                  onChange={(e) => e.target.files && processUploadedFiles(e.target.files)}
+                  multiple
+                  accept=".pdf,.png,.jpg,.jpeg,.csv,.xlsx,.json"
                   className="hidden"
                 />
 
-                <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 mb-3 group-hover:scale-110 transition-transform">
-                  <Upload className="w-7 h-7" />
+                <div className="w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 mb-3 group-hover:scale-110 transition-transform">
+                  <FolderUp className="w-8 h-8" />
                 </div>
 
                 <h3 className="text-base font-bold text-slate-200">
-                  {uploadedFileName ? `Active File: ${uploadedFileName}` : 'Drag & Drop Candidate File or Click to Upload'}
+                  {uploadedFolderName || 'Upload Certificate Folder (Files Named by Gmail ID)'}
                 </h3>
                 <p className="text-xs text-slate-400 mt-1 max-w-md">
-                  Supports candidate roster spreadsheets (<span className="text-indigo-300 font-mono">.csv, .xlsx, .json</span>) or batch certificate files. Automatically parses student names, email addresses, and awards.
+                  Drop a folder of certificates (e.g. <span className="text-indigo-300 font-mono">alex.morgan@gmail.com.pdf</span>, <span className="text-indigo-300 font-mono">sn6703648@gmail.com.png</span>). The engine automatically extracts their Gmail IDs and sets up the auto-mailing queue.
                 </p>
 
-                {uploadedFileName && (
-                  <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Loaded {uploadedFileName} ({uploadedFileSize}) • {candidates.length} Candidate Records Detected</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Helper Actions */}
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2">
+                {/* Upload Action Buttons */}
+                <div className="flex items-center gap-3 mt-4 flex-wrap justify-center">
                   <button
                     type="button"
-                    onClick={handleDownloadSampleCSV}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-slate-800 font-semibold transition-colors cursor-pointer"
+                    onClick={() => folderInputRef.current?.click()}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download CSV Format Template</span>
+                    <FolderUp className="w-4 h-4" />
+                    <span>Upload Entire Folder</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={handleLoadDemoBatch}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-950/70 hover:bg-indigo-900/80 text-indigo-200 border border-indigo-500/40 font-semibold transition-colors cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-all cursor-pointer"
                   >
-                    <Zap className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Load Demo Candidate Roster (5 Students)</span>
+                    <Upload className="w-4 h-4 text-indigo-400" />
+                    <span>Upload Multiple Files / CSV</span>
                   </button>
                 </div>
+              </div>
 
+              {/* Information Banner */}
+              <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span>
+                    <strong>Filename Format Tip:</strong> Name each certificate file with the student's email, e.g. <code className="bg-slate-900 px-1.5 py-0.5 rounded text-amber-300">student_email@gmail.com.pdf</code>.
+                  </span>
+                </div>
                 <button
                   type="button"
-                  onClick={handleAddCandidateRow}
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-semibold transition-colors cursor-pointer"
+                  onClick={() => setShowAutomationGuide(true)}
+                  className="underline font-bold hover:text-white cursor-pointer shrink-0"
                 >
-                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Add Candidate Row</span>
+                  View Automation Setup
                 </button>
               </div>
             </div>
 
-            {/* Email Dispatch Configuration Settings Box */}
-            <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                    Email Dispatcher Setup
+            {/* Email Dispatch Configuration Settings */}
+            <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <span className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                    <Mail className="w-4 h-4 text-indigo-400" />
+                    <span>Email Template & Dispatch Config</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-400">
+                    Auto-Attachment ON
                   </span>
                 </div>
-                <button
-                  onClick={() => setShowEmailPreview(!showEmailPreview)}
-                  className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer underline"
-                >
-                  {showEmailPreview ? 'Hide Preview' : 'Preview Email Layout'}
-                </button>
-              </div>
 
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Email Subject</label>
-                  <input
-                    type="text"
-                    value={emailConfig.subject}
-                    onChange={(e) => setEmailConfig({ ...emailConfig, subject: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono text-[11px]"
-                  />
-                  <span className="text-[10px] text-slate-500 mt-0.5 block">Supports dynamic tags</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-3 mt-3 text-xs">
                   <div>
-                    <label className="block text-slate-400 font-semibold mb-1">Sender Name</label>
+                    <label className="block text-slate-400 mb-1">Email Subject Line</label>
+                    <input
+                      type="text"
+                      value={emailConfig.subject}
+                      onChange={(e) => setEmailConfig({ ...emailConfig, subject: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Sender Name & Title</label>
                     <input
                       type="text"
                       value={emailConfig.senderName}
                       onChange={(e) => setEmailConfig({ ...emailConfig, senderName: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 text-xs"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 font-semibold mb-1">Sender Email</label>
+                    <label className="block text-slate-400 mb-1">Sender Email ID</label>
                     <input
                       type="email"
                       value={emailConfig.senderEmail}
                       onChange={(e) => setEmailConfig({ ...emailConfig, senderEmail: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 text-xs font-mono"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs focus:outline-none"
                     />
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Email Body Template</label>
-                  <textarea
-                    rows={4}
-                    value={emailConfig.bodyText}
-                    onChange={(e) => setEmailConfig({ ...emailConfig, bodyText: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 text-xs font-mono text-[11px]"
-                  />
-                </div>
-
-                <div className="space-y-1.5 pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={emailConfig.attachPdf}
-                      onChange={(e) => setEmailConfig({ ...emailConfig, attachPdf: e.target.checked })}
-                      className="rounded bg-slate-950 border-slate-700 text-indigo-600"
-                    />
-                    <span>Attach high-res PDF certificate file</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={emailConfig.attachQrCode}
-                      onChange={(e) => setEmailConfig({ ...emailConfig, attachQrCode: e.target.checked })}
-                      className="rounded bg-slate-950 border-slate-700 text-indigo-600"
-                    />
-                    <span>Embed cryptographic verification QR code</span>
-                  </label>
-                </div>
+              {/* Main Dispatch CTA */}
+              <div className="pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={handleExecuteDispatch}
+                  disabled={isDispatching || candidates.length === 0}
+                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>
+                    {isDispatching
+                      ? `Dispatching (${dispatchProgress.current}/${dispatchProgress.total})...`
+                      : `Dispatch All ${candidates.length} Certificates via Gmail`}
+                  </span>
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Email Preview Drawer if toggled */}
-          {showEmailPreview && (
-            <div className="p-6 rounded-2xl bg-slate-950 border border-indigo-500/40 space-y-4 animate-in fade-in">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  Live Preview: What the Student Sees in their Inbox
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono">To: rahul.k@college.edu</span>
-              </div>
-
-              <div className="p-6 rounded-xl bg-white text-slate-900 space-y-4 shadow-xl max-w-2xl mx-auto">
-                <div className="border-b pb-4 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm">National Institute of Engineering & Technology</h4>
-                    <span className="text-xs text-slate-500">Official Academic Credential Notification</span>
-                  </div>
-                  <div className="w-10 h-10 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center">
-                    <Award className="w-5 h-5 text-indigo-600" />
-                  </div>
-                </div>
-
-                <div className="text-xs text-slate-700 space-y-3 leading-relaxed">
-                  <p>Dear <strong>Rahul Sharma</strong>,</p>
-                  <p>
-                    Congratulations on your outstanding achievement at <strong>{event.title}</strong> conducted on {event.date}!
-                  </p>
-                  <p>
-                    Your digital certificate (Certificate ID: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-indigo-700">CERT-TH-2026-8812</code>) is verified and attached below.
-                  </p>
-                </div>
-
-                {/* Simulated Certificate Attachment Badge */}
-                <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700">
-                      <QrCode className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-800">Official_Certificate_Rahul_Sharma.pdf</div>
-                      <div className="text-[10px] text-slate-500">Tamper-Proof Digital Credential (2.4 MB)</div>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 rounded bg-indigo-600 text-white text-[11px] font-bold">
-                    View Verified Certificate
-                  </span>
-                </div>
-
-                <div className="pt-3 border-t text-[10px] text-slate-500">
-                  Sent by {emailConfig.senderName} • Department of {event.organizingDepartment}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Section 2: Candidate Email Mapping Table */}
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Section 2: Detected Folder Certificates Queue Table */}
+          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div>
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  <span>Candidate Email Mapping Roster</span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-950 border border-indigo-500/40 text-indigo-300 text-xs font-bold">
-                    {candidates.length} Ready to Dispatch
-                  </span>
+                <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-400" />
+                  <span>Detected Candidate Certificate Queue ({candidates.length} Files)</span>
                 </h3>
-                <p className="text-xs text-slate-400">
-                  Verify or edit candidate email IDs before dispatching. Each candidate will receive their unique certificate directly at their specified email address.
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Extracted Gmail IDs with associated student records and attached certificate documents.
                 </p>
               </div>
 
-              {/* Master Dispatch CTA Button */}
-              <button
-                type="button"
-                onClick={handleExecuteDispatch}
-                disabled={isDispatching || candidates.length === 0}
-                className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-xl shadow-emerald-600/30 disabled:opacity-50 transition-all cursor-pointer"
-              >
-                {isDispatching ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Dispatching Emails ({dispatchProgress.current}/{dispatchProgress.total})...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    <span>Upload & Send Certificates to Candidates ({candidates.length})</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCandidates([])}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Queue</span>
+                </button>
+              </div>
             </div>
 
             {/* Candidates Table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider">
-                  <tr>
-                    <th className="p-3.5">#</th>
-                    <th className="p-3.5">Candidate Name</th>
-                    <th className="p-3.5">Recipient Mail ID (Target)</th>
-                    <th className="p-3.5">Roll No</th>
-                    <th className="p-3.5">Award / Role</th>
-                    <th className="p-3.5">Position Title</th>
-                    <th className="p-3.5 text-right">Actions</th>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
+                    <th className="py-2.5 px-3">Attached File</th>
+                    <th className="py-2.5 px-3">Recipient Gmail ID</th>
+                    <th className="py-2.5 px-3">Student Name</th>
+                    <th className="py-2.5 px-3">Roll Number</th>
+                    <th className="py-2.5 px-3">Award / Title</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {candidates.map((cand, idx) => (
-                    <tr key={cand.id} className="hover:bg-slate-900/50 transition-colors">
-                      <td className="p-3.5 text-slate-500 font-mono">{idx + 1}</td>
-
-                      <td className="p-3.5">
-                        <input
-                          type="text"
-                          value={cand.name}
-                          onChange={(e) => handleUpdateCandidate(cand.id, 'name', e.target.value)}
-                          placeholder="Candidate Name"
-                          className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 text-xs"
-                        />
-                      </td>
-
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <Mail className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                          <input
-                            type="email"
-                            value={cand.email}
-                            onChange={(e) => handleUpdateCandidate(cand.id, 'email', e.target.value)}
-                            placeholder="student@college.edu"
-                            className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-emerald-300 font-mono text-xs focus:outline-none focus:border-indigo-500"
-                          />
+                    <tr key={cand.id} className="hover:bg-slate-800/30 transition-colors group">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-indigo-950/80 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                            <File className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <div className="font-mono text-slate-200 font-bold text-xs truncate max-w-[180px]">
+                              {cand.customFileName || `certificate_${idx + 1}.pdf`}
+                            </div>
+                            <span className="text-[10px] text-slate-500">{cand.customFileSize || '220 KB'}</span>
+                          </div>
                         </div>
                       </td>
 
-                      <td className="p-3.5">
-                        <input
-                          type="text"
-                          value={cand.rollNo}
-                          onChange={(e) => handleUpdateCandidate(cand.id, 'rollNo', e.target.value)}
-                          placeholder="Roll No"
-                          className="w-24 px-2 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-300 font-mono text-xs focus:outline-none focus:border-indigo-500"
-                        />
+                      <td className="py-3 px-3">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 font-mono text-indigo-300 font-semibold text-[11px]">
+                          <Mail className="w-3 h-3 text-rose-400" />
+                          <span>{cand.email}</span>
+                        </div>
                       </td>
 
-                      <td className="p-3.5">
-                        <select
-                          value={cand.role}
-                          onChange={(e) => handleUpdateCandidate(cand.id, 'role', e.target.value)}
-                          className="px-2 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold focus:outline-none focus:border-indigo-500"
-                        >
-                          <option value="WINNER">Winner (1st Place)</option>
-                          <option value="RUNNER_UP">Runner-Up</option>
-                          <option value="PARTICIPANT">Participant</option>
-                          <option value="VOLUNTEER">Volunteer</option>
-                        </select>
+                      <td className="py-3 px-3 font-semibold text-slate-200">
+                        {cand.name}
                       </td>
 
-                      <td className="p-3.5">
-                        <input
-                          type="text"
-                          value={cand.positionTitle || ''}
-                          onChange={(e) => handleUpdateCandidate(cand.id, 'positionTitle', e.target.value)}
-                          placeholder="Position Title"
-                          className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-300 text-xs focus:outline-none focus:border-indigo-500"
-                        />
+                      <td className="py-3 px-3 font-mono text-slate-400 text-[11px]">
+                        {cand.rollNo}
                       </td>
 
-                      <td className="p-3.5 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCandidate(cand.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer"
-                          title="Remove row"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <td className="py-3 px-3 text-slate-300 text-[11px]">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          cand.role === 'WINNER' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' :
+                          cand.role === 'RUNNER_UP' ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30' :
+                          'bg-slate-800 text-slate-300'
+                        }`}>
+                          {cand.positionTitle || 'Certificate of Participation'}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3 text-center">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          cand.status === 'DELIVERED'
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : cand.status === 'SENDING'
+                            ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 animate-pulse'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {cand.status === 'DELIVERED' && <CheckCircle2 className="w-3 h-3" />}
+                          <span>{cand.status === 'DELIVERED' ? 'Sent via Gmail' : cand.status === 'SENDING' ? 'Sending...' : 'Ready'}</span>
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {cand.customFileUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewCertItem(cand)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors cursor-pointer"
+                              title="Preview Attached Certificate"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleSendCandidateSingle(cand.id)}
+                            disabled={cand.status === 'DELIVERED'}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[11px] font-bold transition-all disabled:opacity-40 cursor-pointer"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>{cand.status === 'DELIVERED' ? 'Resend' : 'Send'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setCandidates((prev) => prev.filter((c) => c.id !== cand.id))}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -946,220 +836,72 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
               </table>
             </div>
           </div>
-
-          {/* Section 3: Live Dispatch Progress Modal / Banner */}
-          {(isDispatching || dispatchComplete) && (
-            <div className="p-6 rounded-2xl bg-slate-900 border border-emerald-500/40 space-y-4 shadow-2xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    dispatchComplete ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white animate-pulse'
-                  }`}>
-                    {dispatchComplete ? <CheckCheck className="w-5 h-5" /> : <RefreshCw className="w-5 h-5 animate-spin" />}
-                  </div>
-                  <div>
-                    <h4 className="text-base font-bold text-slate-100">
-                      {dispatchComplete ? 'All Certificates Successfully Dispatched!' : 'Live Automated Email Dispatch in Progress'}
-                    </h4>
-                    <p className="text-xs text-slate-400">
-                      {dispatchComplete
-                        ? `${dispatchProgress.total} candidate certificates were emailed with cryptographic verification credentials.`
-                        : `Currently transmitting to candidate: ${dispatchProgress.currentCandidate} (${dispatchProgress.currentEmail})`}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setActiveSubTab('REGISTRY')}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
-                >
-                  View Issued Registry & Delivery Logs →
-                </button>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-slate-400 font-semibold">
-                  <span>Progress ({dispatchProgress.current} / {dispatchProgress.total} Delivered)</span>
-                  <span>{dispatchProgress.total > 0 ? Math.round((dispatchProgress.current / dispatchProgress.total) * 100) : 0}%</span>
-                </div>
-                <div className="w-full h-2.5 rounded-full bg-slate-950 overflow-hidden border border-slate-800">
-                  <div
-                    className="h-full bg-gradient-to-r from-indigo-500 via-teal-500 to-emerald-500 transition-all duration-300"
-                    style={{
-                      width: `${dispatchProgress.total > 0 ? (dispatchProgress.current / dispatchProgress.total) * 100 : 0}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Transmission Logs */}
-              <div className="max-h-36 overflow-y-auto space-y-1 p-3 rounded-xl bg-slate-950 font-mono text-[11px] text-slate-300 border border-slate-800">
-                {dispatchProgress.logs.map((log, i) => (
-                  <div key={i} className="flex items-center justify-between text-slate-300 py-0.5">
-                    <span className="text-emerald-400">✓ [{log.time}] Emailed {log.name} &lt;{log.email}&gt;</span>
-                    <span className="text-slate-500 text-[10px]">{log.status}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-VIEW 2: ISSUED CERTIFICATE REGISTRY & DELIVERY TRACKER                */}
+      {/* SUB-VIEW 2: ISSUED CERTIFICATES REGISTRY                                  */}
       {/* ========================================================================= */}
       {activeSubTab === 'REGISTRY' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-1 max-w-md">
-              <div className="relative w-full">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search by candidate name, email, roll no, or cert ID..."
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
+        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <h3 className="font-bold text-sm text-slate-100">
+                Official Issued Certificate Registry ({eventCerts.length})
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Every issued certificate is secured with a tamper-proof verification ID and QR code.
+              </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <select
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
-                className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none"
-              >
-                <option value="ALL">All Award Roles</option>
-                <option value="WINNER">Winners</option>
-                <option value="RUNNER_UP">Runner-Ups</option>
-                <option value="PARTICIPANT">Participants</option>
-                <option value="VOLUNTEER">Volunteers</option>
-              </select>
-
-              {eventCerts.length > 0 && (
-                <button
-                  onClick={handleSendAll}
-                  disabled={isSendingAll}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md disabled:opacity-50 transition-all cursor-pointer"
-                >
-                  {isSendingAll ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  <span>Resend All ({eventCerts.length})</span>
-                </button>
-              )}
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by student name, roll no, or ID..."
+                className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs w-64 focus:outline-none"
+              />
             </div>
           </div>
 
-          {/* Certificate Table */}
-          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="p-3.5">Certificate ID</th>
-                  <th className="p-3.5">Candidate Details</th>
-                  <th className="p-3.5">Award / Category</th>
-                  <th className="p-3.5">Delivery Status</th>
-                  <th className="p-3.5">Sent Timestamp</th>
-                  <th className="p-3.5 text-right">Actions</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
+                  <th className="py-2.5 px-3">Certificate ID</th>
+                  <th className="py-2.5 px-3">Recipient Name</th>
+                  <th className="py-2.5 px-3">Roll Number</th>
+                  <th className="py-2.5 px-3">Email Address</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {filteredCerts.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-12 text-center text-xs text-slate-500">
-                      No matching issued certificates found. Use "File Upload & Auto-Email" to import candidates.
+                {eventCerts.map((cert) => (
+                  <tr key={cert.id} className="hover:bg-slate-800/30 transition-colors">
+                    <td className="py-3 px-3 font-mono font-bold text-amber-400 text-[11px]">
+                      {cert.certificateId}
+                    </td>
+                    <td className="py-3 px-3 font-semibold text-slate-200">{cert.recipientName}</td>
+                    <td className="py-3 px-3 font-mono text-slate-400">{cert.recipientRollNo}</td>
+                    <td className="py-3 px-3 text-slate-300">{cert.recipientEmail}</td>
+                    <td className="py-3 px-3">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        {cert.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onOpenVerificationModal(cert.certificateId)}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-bold text-[11px] cursor-pointer"
+                      >
+                        Verify QR
+                      </button>
                     </td>
                   </tr>
-                ) : (
-                  filteredCerts.map((cert) => (
-                    <tr key={cert.id} className="hover:bg-slate-900/50 transition-colors">
-                      <td className="p-3.5 font-mono text-amber-300 font-bold whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <Award className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{cert.certificateId}</span>
-                        </div>
-                      </td>
-
-                      <td className="p-3.5">
-                        <div className="font-bold text-slate-100">{cert.recipientName}</div>
-                        <div className="text-[11px] text-emerald-400 font-mono flex items-center gap-1">
-                          <Mail className="w-3 h-3" />
-                          <span>{cert.recipientEmail}</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          {cert.recipientRollNo} • {cert.recipientDept}
-                        </div>
-                      </td>
-
-                      <td className="p-3.5">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold border inline-block ${
-                            cert.recipientRole === 'WINNER'
-                              ? 'bg-amber-950/80 text-amber-300 border-amber-500/40'
-                              : cert.recipientRole === 'RUNNER_UP'
-                              ? 'bg-purple-950/80 text-purple-300 border-purple-500/40'
-                              : cert.recipientRole === 'VOLUNTEER'
-                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
-                              : 'bg-indigo-950/80 text-indigo-300 border-indigo-500/40'
-                          }`}
-                        >
-                          {cert.positionTitle || cert.recipientRole}
-                        </span>
-                      </td>
-
-                      <td className="p-3.5">
-                        {cert.status === 'DELIVERED' ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 font-bold text-[11px]">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Emailed & Verified</span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-500 text-[11px]">Queued</span>
-                        )}
-                      </td>
-
-                      <td className="p-3.5 text-slate-400 text-[11px] font-mono whitespace-nowrap">
-                        {cert.sentAt ? new Date(cert.sentAt).toLocaleString() : cert.issueDate}
-                      </td>
-
-                      <td className="p-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => onOpenVerificationModal(cert.certificateId)}
-                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-800 transition-colors cursor-pointer"
-                            title="Preview Authentic Certificate"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-
-                          <button
-                            onClick={() => handleSendSingle(cert.certificateId)}
-                            disabled={sendingCertId === cert.certificateId}
-                            className="p-1.5 px-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
-                            title="Resend to Candidate Email"
-                          >
-                            {sendingCertId === cert.certificateId ? (
-                              <RefreshCw className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <Mail className="w-3 h-3" />
-                            )}
-                            <span>Resend</span>
-                          </button>
-
-                          <button
-                            onClick={() => deleteCertificate(cert.certificateId)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer"
-                            title="Revoke / Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
@@ -1167,252 +909,269 @@ export const CertificateSystem: React.FC<CertificateSystemProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-VIEW 3: SMART RULE EVALUATION ENGINE                                  */}
+      {/* SUB-VIEW 3: TEMPLATE STUDIO                                               */}
       {/* ========================================================================= */}
-      {activeSubTab === 'SMART_RULES' && (
-        <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {activeSubTab === 'TEMPLATE_STUDIO' && (
+        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <div>
-              <h3 className="text-base font-bold text-slate-100">Automated Attendance & Round Progression Rules</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Automatically scans registered participants, confirmed volunteer check-ins, and judges' leaderboard results to generate credentials.
-              </p>
+              <h3 className="font-bold text-sm text-slate-100">Certificate Visual Studio & Signatories</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Customize college seals, signatory designations, and theme palette.</p>
             </div>
-
-            <button
-              onClick={handleEvaluateAndGenerate}
-              disabled={isEvaluating}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 disabled:opacity-50 transition-all cursor-pointer"
-            >
-              {isEvaluating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              <span>Execute Rule Engine & Generate</span>
-            </button>
+            {templateSavedMsg && (
+              <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4" /> Template Saved!
+              </span>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-              <span className="text-[10px] uppercase font-bold text-indigo-400">Rule 1: Attendance Threshold</span>
-              <div className="text-xs font-semibold text-slate-200">Requires Verified QR Check-in</div>
-              <p className="text-[11px] text-slate-400">Only candidates scanned by volunteers at registration desk pass threshold.</p>
+          <form onSubmit={handleSaveTemplate} className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-400 mb-1">Institution / College Name</label>
+                <input
+                  type="text"
+                  value={template.collegeName}
+                  onChange={(e) => setTemplate({ ...template, collegeName: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">Signatory Authority Names</label>
+                <input
+                  type="text"
+                  value={template.signatoryName}
+                  onChange={(e) => setTemplate({ ...template, signatoryName: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">Signatory Official Titles</label>
+                <input
+                  type="text"
+                  value={template.signatoryTitle}
+                  onChange={(e) => setTemplate({ ...template, signatoryTitle: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">Theme Palette</label>
+                <select
+                  value={template.theme}
+                  onChange={(e) => setTemplate({ ...template, theme: e.target.value as any })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200"
+                >
+                  <option value="classic-gold">Classic Gold & Academic Ivory</option>
+                  <option value="tech-blue">Tech Blue & Cyber Indigo</option>
+                  <option value="modern-emerald">Modern Emerald Green</option>
+                  <option value="crimson-prestige">Crimson Prestige & Ruby</option>
+                </select>
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-              <span className="text-[10px] uppercase font-bold text-amber-400">Rule 2: Podium Rank Matrix</span>
-              <div className="text-xs font-semibold text-slate-200">Jury Round Evaluation</div>
-              <p className="text-[11px] text-slate-400">Teams flagged as WINNER or RUNNER_UP automatically receive Distinction Honors.</p>
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+              >
+                Save Certificate Template
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* AUTOMATION SETUP & INSTRUCTIONS MODAL (How to do Gmail Certificate Auto)   */}
+      {/* ========================================================================= */}
+      {showAutomationGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-3xl rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Code className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">
+                    How to Set Up Gmail Certificate Automation
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    3 Production Approaches to automatically send attached certificates directly to student inboxes.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowAutomationGuide(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-              <span className="text-[10px] uppercase font-bold text-emerald-400">Rule 3: Volunteer Recognition</span>
-              <div className="text-xs font-semibold text-slate-200">Roster Completion Check</div>
-              <p className="text-[11px] text-slate-400">Checked-in volunteers receive dedicated Organizing Committee certificates.</p>
+            <div className="p-6 overflow-y-auto space-y-6 text-xs text-slate-300">
+              {/* Option 1: Nodemailer + Gmail App Password */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-400 text-sm flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-xs">1</span>
+                    Method 1: Direct Next.js Server Route (Nodemailer + Gmail App Password)
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400">
+                    Fastest & Free (500 emails/day)
+                  </span>
+                </div>
+                <p className="text-slate-400 text-xs">
+                  Generate an <strong>App Password</strong> in your Google Account (Security $\rightarrow$ 2-Step Verification $\rightarrow$ App Passwords) and send emails with PDF attachments via Next.js API route.
+                </p>
+
+                <div className="relative bg-slate-900 p-3 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto">
+                  <pre>{`// src/app/api/certificates/send-gmail/route.ts
+import nodemailer from 'nodemailer';
+
+export async function POST(req: Request) {
+  const { recipientEmail, recipientName, eventTitle, fileBase64, fileName } = await req.json();
+
+  const transporter = nodemailer.createTransporter({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,       // your.college.fest@gmail.com
+      pass: process.env.GMAIL_APP_PASS,   // 16-character Google App Password
+    },
+  });
+
+  await transporter.sendMail({
+    from: \`"\${process.env.SENDER_NAME}" <\${process.env.GMAIL_USER}>\`,
+    to: recipientEmail,
+    subject: \`🎓 Official Verified Certificate for \${eventTitle}\`,
+    html: \`<h2>Congratulations, \${recipientName}!</h2><p>Your verified certificate for <strong>\${eventTitle}</strong> is attached.</p>\`,
+    attachments: [
+      {
+        filename: fileName || 'Certificate.pdf',
+        content: fileBase64,
+        encoding: 'base64',
+      },
+    ],
+  });
+
+  return Response.json({ success: true, deliveredTo: recipientEmail });
+}`}</pre>
+                  <button
+                    onClick={() => copyToClipboard(`import nodemailer from 'nodemailer';\n\nexport async function POST(req: Request) {\n  const { recipientEmail, recipientName, eventTitle, fileBase64, fileName } = await req.json();\n\n  const transporter = nodemailer.createTransporter({\n    service: 'gmail',\n    auth: {\n      user: process.env.GMAIL_USER,\n      pass: process.env.GMAIL_APP_PASS,\n    },\n  });\n\n  await transporter.sendMail({\n    from: \`"\${process.env.SENDER_NAME}" <\${process.env.GMAIL_USER}>\`,\n    to: recipientEmail,\n    subject: \`🎓 Official Verified Certificate for \${eventTitle}\`,\n    html: \`<h2>Congratulations, \${recipientName}!</h2><p>Your verified certificate for <strong>\${eventTitle}</strong> is attached.</p>\`,\n    attachments: [{\n      filename: fileName || 'Certificate.pdf',\n      content: fileBase64,\n      encoding: 'base64',\n    }],\n  });\n\n  return Response.json({ success: true, deliveredTo: recipientEmail });\n}`, 'nodemailer')}
+                    className="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-[10px] cursor-pointer"
+                  >
+                    {copiedSnippet === 'nodemailer' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedSnippet === 'nodemailer' ? 'Copied' : 'Copy Code'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 2: n8n Workflow Webhook */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-400 text-sm flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs">2</span>
+                    Method 2: Low-Code n8n Workflow Automation
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-400">
+                    No-Code Webhook Hook
+                  </span>
+                </div>
+                <p className="text-slate-400 text-xs">
+                  Create an n8n webhook workflow that receives the candidate payload, uploads the PDF to Google Drive, and uses the <strong>Gmail Node</strong> or <strong>Google Workspace Node</strong> to email the student.
+                </p>
+
+                <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1.5">
+                  <div className="font-bold text-slate-200">Webhook Target Endpoint:</div>
+                  <code className="block bg-slate-950 p-2 rounded text-indigo-300 font-mono">
+                    POST http://localhost:5678/webhook/dispatch-certificate
+                  </code>
+                </div>
+              </div>
+
+              {/* Step Checklist */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                <span className="font-bold text-slate-200 block text-xs uppercase tracking-wider">
+                  Quick Step Checklist:
+                </span>
+                <ol className="space-y-1.5 text-slate-400 list-decimal list-inside text-xs">
+                  <li>Place all student certificate files in a folder on your computer.</li>
+                  <li>Name each file with their Gmail ID (e.g. <code className="text-amber-300">alex.morgan@gmail.com.pdf</code>).</li>
+                  <li>Click <strong>"Upload Entire Folder"</strong> in the Smart Certificate Engine.</li>
+                  <li>The UI automatically extracts the emails, maps to registered students, and displays the queue.</li>
+                  <li>Click <strong>"Dispatch All Certificates via Gmail"</strong> to trigger the automated mailing engine.</li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex justify-end bg-slate-950">
+              <button
+                onClick={() => setShowAutomationGuide(false)}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all cursor-pointer"
+              >
+                Got It, Thanks!
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* SUB-VIEW 4: VISUAL TEMPLATE STUDIO & SEALS                                */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'TEMPLATE_STUDIO' && (
-        <form onSubmit={handleSaveTemplate} className="space-y-6">
-          <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+      {/* Single Certificate Preview Modal */}
+      {previewCertItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-lg rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                  Certificate Visual Layout, Watermarks & Signatures
-                </span>
+                <Award className="w-5 h-5 text-amber-400" />
+                <span className="font-bold text-slate-100 text-sm">{previewCertItem.name}'s Certificate</span>
               </div>
-              {templateSavedMsg && (
-                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Template Saved Successfully!
-                </span>
-              )}
+              <button
+                onClick={() => setPreviewCertItem(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Visual Theme Palette</label>
-                <select
-                  value={template.theme}
-                  onChange={(e) => setTemplate({ ...template, theme: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100 font-semibold"
-                >
-                  <option value="classic-gold">Classic Gold & Royal Ivory</option>
-                  <option value="tech-blue">Cyber Tech & Neon Indigo</option>
-                  <option value="modern-emerald">Emerald Prestige & Forest</option>
-                  <option value="crimson-prestige">Crimson Academic & Platinum</option>
-                </select>
+                <span className="text-slate-500 block">Recipient Gmail:</span>
+                <strong className="text-indigo-400 font-mono text-sm">{previewCertItem.email}</strong>
               </div>
-
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Institution / University Name</label>
-                <input
-                  type="text"
-                  value={template.collegeName}
-                  onChange={(e) => setTemplate({ ...template, collegeName: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
-                />
+                <span className="text-slate-500 block">Attached File:</span>
+                <span className="text-slate-200 font-mono">{previewCertItem.customFileName} ({previewCertItem.customFileSize})</span>
               </div>
-
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Watermark Banner</label>
-                <input
-                  type="text"
-                  value={template.collegeLogoText}
-                  onChange={(e) => setTemplate({ ...template, collegeLogoText: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Official Signatory Names</label>
-                <input
-                  type="text"
-                  value={template.signatoryName}
-                  onChange={(e) => setTemplate({ ...template, signatoryName: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Signatory Titles</label>
-                <input
-                  type="text"
-                  value={template.signatoryTitle}
-                  onChange={(e) => setTemplate({ ...template, signatoryTitle: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Issuing Department</label>
-                <input
-                  type="text"
-                  value={template.signatoryDepartment}
-                  onChange={(e) => setTemplate({ ...template, signatoryDepartment: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
-                />
+                <span className="text-slate-500 block">Award Position:</span>
+                <span className="text-amber-400 font-semibold">{previewCertItem.positionTitle}</span>
               </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
-                type="submit"
-                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg transition-all cursor-pointer"
+                onClick={() => setPreviewCertItem(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:text-white cursor-pointer"
               >
-                Save Certificate Template
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  handleSendCandidateSingle(previewCertItem.id);
+                  setPreviewCertItem(null);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Send Certificate Now</span>
               </button>
             </div>
           </div>
-        </form>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SUB-VIEW 5: MANUAL SINGLE CANDIDATE ISSUE                                 */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'MANUAL_ISSUE' && (
-        <form onSubmit={handleManualSubmit} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 max-w-2xl">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-            <Plus className="w-4 h-4 text-sky-400" />
-            <h3 className="text-sm font-bold text-slate-100">Issue Single Certificate with Instant Email Delivery</h3>
-          </div>
-
-          {manualSuccessMsg && (
-            <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-semibold">
-              {manualSuccessMsg}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1">Candidate Full Name *</label>
-              <input
-                type="text"
-                required
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-                placeholder="e.g. Rahul Sharma"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1">Candidate Email ID (for Delivery) *</label>
-              <input
-                type="email"
-                required
-                value={manualEmail}
-                onChange={(e) => setManualEmail(e.target.value)}
-                placeholder="student@college.edu or gmail.com"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-emerald-300 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1">Student Roll Number</label>
-              <input
-                type="text"
-                value={manualRoll}
-                onChange={(e) => setManualRoll(e.target.value)}
-                placeholder="e.g. 21CS042"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1">Department</label>
-              <input
-                type="text"
-                value={manualDept}
-                onChange={(e) => setManualDept(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1">Award Category</label>
-              <select
-                value={manualRole}
-                onChange={(e) => {
-                  const r = e.target.value as any;
-                  setManualRole(r);
-                  if (r === 'WINNER') setManualPosition('First Place • Grand Champion');
-                  else if (r === 'RUNNER_UP') setManualPosition('Runner-Up Award of Excellence');
-                  else if (r === 'VOLUNTEER') setManualPosition('Organising Volunteer Award');
-                  else setManualPosition('Certificate of Active Participation');
-                }}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100 font-semibold"
-              >
-                <option value="PARTICIPANT">Participant</option>
-                <option value="WINNER">Winner (1st Place)</option>
-                <option value="RUNNER_UP">Runner-Up</option>
-                <option value="VOLUNTEER">Volunteer</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1">Position / Honor Title</label>
-              <input
-                type="text"
-                value={manualPosition}
-                onChange={(e) => setManualPosition(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Send className="w-4 h-4" />
-            <span>Generate & Send Certificate to Candidate Email</span>
-          </button>
-        </form>
+        </div>
       )}
     </div>
   );

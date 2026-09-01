@@ -305,43 +305,85 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
         </div>
       )}
 
-      {/* Real-time KPI Stats Grid */}
+      {/* Real-time KPI Stats Grid (Clickable Filters) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+        <button
+          type="button"
+          onClick={() => setAttendanceFilter('ALL')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            attendanceFilter === 'ALL' ? 'ring-2 ring-indigo-500 shadow-md' : 'hover:border-slate-600'
+          }`}
+          style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
+        >
           <div className="text-xs text-slate-400 font-medium">Total Registered</div>
           <div className="text-xl font-bold font-display mt-1" style={{ color: 'var(--text-primary)' }}>{eventRegs.length}</div>
           <div className="text-[10px] text-slate-400 mt-1">Cap: {event.maxStudents}</div>
-        </div>
+        </button>
 
-        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+        <button
+          type="button"
+          onClick={() => setAttendanceFilter('PRESENT')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            attendanceFilter === 'PRESENT' ? 'ring-2 ring-emerald-500 shadow-md' : 'hover:border-slate-600'
+          }`}
+          style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
+        >
           <div className="text-xs font-medium text-emerald-500">Present (On-Time)</div>
           <div className="text-xl font-bold font-display text-emerald-500 mt-1">{presentCount}</div>
           <div className="text-[10px] text-slate-400 mt-1">Confirmed attendance</div>
-        </div>
+        </button>
 
-        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+        <button
+          type="button"
+          onClick={() => setAttendanceFilter('LATE')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            attendanceFilter === 'LATE' ? 'ring-2 ring-amber-500 shadow-md' : 'hover:border-slate-600'
+          }`}
+          style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
+        >
           <div className="text-xs font-medium text-amber-500">Late Arrivals</div>
           <div className="text-xl font-bold font-display text-amber-500 mt-1">{lateCount}</div>
           <div className="text-[10px] text-slate-400 mt-1">Logged with notes</div>
-        </div>
+        </button>
 
-        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+        <button
+          type="button"
+          onClick={() => setAttendanceFilter('ABSENT')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            attendanceFilter === 'ABSENT' ? 'ring-2 ring-rose-500 shadow-md' : 'hover:border-slate-600'
+          }`}
+          style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
+        >
           <div className="text-xs font-medium text-rose-500">Absent / No-Show</div>
           <div className="text-xl font-bold font-display text-rose-500 mt-1">{absentCount}</div>
           <div className="text-[10px] text-slate-400 mt-1">Pending check-in</div>
-        </div>
+        </button>
 
-        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+        <button
+          type="button"
+          onClick={() => setAttendanceFilter('REPLACED')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            attendanceFilter === 'REPLACED' ? 'ring-2 ring-purple-500 shadow-md' : 'hover:border-slate-600'
+          }`}
+          style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
+        >
           <div className="text-xs font-medium text-purple-500">Substitutions</div>
           <div className="text-xl font-bold font-display text-purple-500 mt-1">{replacedCount}</div>
           <div className="text-[10px] text-slate-400 mt-1">Member replacements</div>
-        </div>
+        </button>
 
-        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+        <button
+          type="button"
+          onClick={() => setAttendanceFilter('INCOMPLETE')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            attendanceFilter === 'INCOMPLETE' ? 'ring-2 ring-indigo-500 shadow-md' : 'hover:border-slate-600'
+          }`}
+          style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
+        >
           <div className="text-xs font-medium text-indigo-500">Incomplete Squads</div>
           <div className="text-xl font-bold font-display text-indigo-500 mt-1">{incompleteTeams.length}</div>
           <div className="text-[10px] text-slate-400 mt-1">Below min team size</div>
-        </div>
+        </button>
       </div>
 
       {/* Controls Bar: Search, Filters, Export */}
@@ -365,22 +407,22 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
           <select
             value={attendanceFilter}
             onChange={(e) => setAttendanceFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border text-xs focus:outline-none"
+            className="px-3 py-2 rounded-xl border text-xs focus:outline-none font-semibold"
             style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
           >
-            <option value="ALL">All Attendance</option>
-            <option value="PRESENT">Present Only</option>
-            <option value="LATE">Late Only</option>
-            <option value="ABSENT">Absent / No-Show</option>
-            <option value="INCOMPLETE">Incomplete Squads</option>
-            <option value="REPLACED">Substituted Members</option>
+            <option value="ALL">All Attendance ({eventRegs.length})</option>
+            <option value="PRESENT">Present Only ({presentCount})</option>
+            <option value="LATE">Late Only ({lateCount})</option>
+            <option value="ABSENT">Absent / No-Show ({absentCount})</option>
+            <option value="INCOMPLETE">Incomplete Squads ({incompleteTeams.length})</option>
+            <option value="REPLACED">Substituted Members ({replacedCount})</option>
           </select>
 
           {/* Department Filter */}
           <select
             value={deptFilter}
             onChange={(e) => setDeptFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border text-xs focus:outline-none max-w-[150px] truncate"
+            className="px-3 py-2 rounded-xl border text-xs focus:outline-none max-w-[150px] truncate font-semibold"
             style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
           >
             <option value="ALL">All Departments</option>
@@ -417,7 +459,7 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
         <table className="w-full text-left text-xs">
           <thead className="border-b uppercase text-[10px] tracking-wider" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-muted)' }}>
             <tr>
-              <th className="p-4">Student / Squad</th>
+              <th className="p-4">Student / Squad (Click to View)</th>
               <th className="p-4">Department & Year</th>
               <th className="p-4">Team Status & Roster</th>
               <th className="p-4">Attendance</th>
@@ -441,9 +483,10 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
                 return (
                   <React.Fragment key={reg.id}>
                     <tr className="hover:bg-slate-500/5 transition-colors">
-                      <td className="p-4">
-                        <div className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                          {reg.studentName}
+                      <td className="p-4 cursor-pointer group" onClick={() => setSelectedReg(reg)}>
+                        <div className="font-bold text-sm group-hover:text-sky-500 transition-colors flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                          <span>{reg.studentName}</span>
+                          <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-sky-500" />
                         </div>
                         <div className="text-[11px] font-mono text-sky-500 font-semibold mt-0.5">
                           {reg.rollNumber}
@@ -873,71 +916,213 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
 
       {/* DETAILED RESPONSE MODAL */}
       {selectedReg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
-            <div className="p-5 border-b flex items-center justify-between" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+            <div className="p-5 border-b flex items-start justify-between gap-4 sticky top-0 z-10" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
               <div>
-                <h3 className="text-base font-display font-bold" style={{ color: 'var(--text-primary)' }}>
-                  Registration Submission Profile
-                </h3>
-                <p className="text-xs text-slate-400">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/30">
+                    {selectedReg.teamName ? `Squad: ${selectedReg.teamName}` : 'Individual Participant'}
+                  </span>
+                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                    selectedReg.attendance?.status === 'PRESENT' || selectedReg.attendance?.attended
+                      ? 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30'
+                      : selectedReg.attendance?.status === 'LATE'
+                      ? 'bg-amber-500/15 text-amber-600 border border-amber-500/30'
+                      : 'bg-rose-500/15 text-rose-600 border border-rose-500/30'
+                  }`}>
+                    {selectedReg.attendance?.status || (selectedReg.attendance?.attended ? 'PRESENT' : 'ABSENT')}
+                  </span>
+                  {selectedReg.teamEligibility === 'INCOMPLETE_TEAM' && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30">
+                      Incomplete Squad
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-lg font-display font-extrabold" style={{ color: 'var(--text-primary)' }}>
                   {selectedReg.studentName} ({selectedReg.rollNumber})
-                </p>
+                </h3>
               </div>
               <button onClick={() => setSelectedReg(null)} className="p-1.5 text-slate-400 hover:text-slate-200 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+            <div className="p-6 overflow-y-auto space-y-5 text-xs">
+              {/* Quick Attendance Action Controls */}
+              <div className="p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Student Email</span>
-                  <div className="font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>{selectedReg.email}</div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Attendance & Check-in Control</span>
+                  <div className="text-xs font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>
+                    Current Status: <strong className={selectedReg.attendance?.attended ? 'text-emerald-500' : 'text-rose-500'}>
+                      {selectedReg.attendance?.status || (selectedReg.attendance?.attended ? 'Verified Present' : 'Absent / Not Checked In')}
+                    </strong>
+                    {selectedReg.attendance?.timestamp && (
+                      <span className="text-[11px] text-slate-400 ml-2 font-normal">
+                        ({new Date(selectedReg.attendance.timestamp).toLocaleTimeString()})
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Contact Number</span>
-                  <div className="font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>{selectedReg.phone}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Department</span>
-                  <div className="font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>{selectedReg.department}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Attendance Score</span>
-                  <div className="font-semibold text-emerald-500 mt-0.5">{selectedReg.overallAttendancePercentage ?? 100}%</div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleMarkStatus(selectedReg.id, 'PRESENT', undefined, selectedReg.studentName);
+                      setSelectedReg({ ...selectedReg, attendance: { ...selectedReg.attendance, attended: true, status: 'PRESENT' } });
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border border-emerald-500/30 cursor-pointer flex items-center gap-1"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Present
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleMarkStatus(selectedReg.id, 'LATE', undefined, selectedReg.studentName);
+                      setSelectedReg({ ...selectedReg, attendance: { ...selectedReg.attendance, attended: true, status: 'LATE' } });
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-600 hover:bg-amber-500/25 border border-amber-500/30 cursor-pointer flex items-center gap-1"
+                  >
+                    <Clock className="w-3.5 h-3.5" /> Late
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleMarkStatus(selectedReg.id, 'ABSENT', undefined, selectedReg.studentName);
+                      setSelectedReg({ ...selectedReg, attendance: { ...selectedReg.attendance, attended: false, status: 'ABSENT' } });
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-500/15 text-rose-600 hover:bg-rose-500/25 border border-rose-500/30 cursor-pointer flex items-center gap-1"
+                  >
+                    <X className="w-3.5 h-3.5" /> Absent
+                  </button>
                 </div>
               </div>
 
-              {/* Dynamic AI Custom Form Responses */}
+              {/* Student Academic & Contact Info */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Student Email</span>
+                  <div className="font-semibold mt-0.5 truncate" style={{ color: 'var(--text-primary)' }}>{selectedReg.email}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Contact Phone</span>
+                  <div className="font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>{selectedReg.phone || 'N/A'}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Department & Year</span>
+                  <div className="font-semibold mt-0.5 truncate" style={{ color: 'var(--text-primary)' }}>{selectedReg.department} ({selectedReg.year})</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Attendance Rate</span>
+                  <div className="font-bold text-emerald-500 mt-0.5">{selectedReg.overallAttendancePercentage ?? (selectedReg.attendance?.attended ? 100 : 0)}%</div>
+                </div>
+              </div>
+
+              {/* Squad Members Details */}
+              {selectedReg.membersList && selectedReg.membersList.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 block">
+                    Squad Members & Individual Status ({selectedReg.membersList.length})
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {selectedReg.membersList.map((m) => {
+                      const isMemberPresent = m.attendanceStatus === 'PRESENT' || m.attendanceStatus === 'LATE';
+                      const isReplaced = m.attendanceStatus === 'REPLACED';
+                      return (
+                        <div
+                          key={m.id}
+                          className="p-3 rounded-xl border flex items-center justify-between gap-2"
+                          style={{
+                            backgroundColor: isReplaced ? 'rgba(100,116,139,0.06)' : 'var(--surface-raised)',
+                            borderColor: 'var(--border-default)',
+                            opacity: isReplaced ? 0.6 : 1,
+                          }}
+                        >
+                          <div>
+                            <div className="font-bold text-xs flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                              <span>{m.name}</span>
+                              {m.isLead && <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-600">Lead</span>}
+                              {m.isReplacementMember && <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-600">Replacement</span>}
+                            </div>
+                            <div className="font-mono text-[10px] text-slate-400">{m.rollNumber} • {m.department}</div>
+                            {m.replacementInfo && (
+                              <div className="text-[9px] text-purple-500 mt-0.5">
+                                Substituted for: {m.replacementInfo.reason}
+                              </div>
+                            )}
+                          </div>
+
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                            isMemberPresent ? 'bg-emerald-500/15 text-emerald-600' : isReplaced ? 'bg-slate-500/15 text-slate-400' : 'bg-rose-500/15 text-rose-600'
+                          }`}>
+                            {m.attendanceStatus}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic Form Responses */}
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider mb-2 text-indigo-500">
-                  Form Responses
+                  Dynamic Registration Form Submissions
                 </h4>
-                <div className="space-y-2">
-                  {Object.entries(selectedReg.customResponses || {}).map(([key, value]) => {
-                    const matchedField = event.registrationForm.find((f) => f.id === key);
-                    const label = matchedField ? matchedField.label : key;
-                    return (
-                      <div key={key} className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
-                        <div className="text-[11px] font-semibold text-slate-400 mb-1">{label}</div>
-                        <div className="font-medium whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
-                          {String(value) || <span className="text-slate-400 italic">Not provided</span>}
+                {(!selectedReg.customResponses || Object.keys(selectedReg.customResponses).length === 0) ? (
+                  <div className="p-3 rounded-xl border text-slate-400 italic" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                    No custom form fields were configured for this submission.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {Object.entries(selectedReg.customResponses).map(([key, value]) => {
+                      const matchedField = event.registrationForm.find((f) => f.id === key);
+                      const label = matchedField ? matchedField.label : key;
+                      return (
+                        <div key={key} className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                          <div className="text-[11px] font-semibold text-slate-400 mb-1">{label}</div>
+                          <div className="font-medium whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
+                            {String(value) || <span className="text-slate-400 italic">Not provided</span>}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
+
+              {/* Substitution Audit History if any */}
+              {selectedReg.replacementHistory && selectedReg.replacementHistory.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-purple-500 flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5" /> Substitution Audit Trail
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedReg.replacementHistory.map((hist) => (
+                      <div key={hist.id} className="p-3 rounded-xl border bg-purple-500/5 border-purple-500/20 text-[11px] space-y-1">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span>Replaced by <strong>{hist.replacedByActorName}</strong> ({hist.replacedByActorRole})</span>
+                          <span>{new Date(hist.replacedAt).toLocaleTimeString()}</span>
+                        </div>
+                        <div className="font-semibold text-slate-300">
+                          Swapped <span className="text-rose-400">{hist.originalMember.name}</span> with <span className="text-emerald-400">{hist.newMember.name}</span>
+                        </div>
+                        <div className="text-slate-400 italic">Reason: "{hist.reason}"</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="p-4 border-t flex justify-end" style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--surface-raised)' }}>
+            <div className="p-4 border-t flex justify-end gap-2 sticky bottom-0 z-10" style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--surface-raised)' }}>
               <button
                 onClick={() => setSelectedReg(null)}
-                className="px-4 py-2 rounded-xl border font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
-                style={{ borderColor: 'var(--border-default)' }}
+                className="px-5 py-2 rounded-xl border font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
               >
-                Close View
+                Close Profile
               </button>
             </div>
           </div>

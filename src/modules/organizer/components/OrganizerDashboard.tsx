@@ -6,7 +6,6 @@ import {
   Users,
   Shuffle,
   UserCheck,
-  Activity,
   Award,
   BarChart3,
   Plus,
@@ -25,11 +24,9 @@ import { CreateEventModal } from './CreateEventModal';
 import { RegistrationManager } from './RegistrationManager';
 import { RandomAllocationEngine } from './RandomAllocationEngine';
 import { VolunteerManager } from './VolunteerManager';
-import { LiveMonitoring } from './LiveMonitoring';
 import { CertificateSystem } from './CertificateSystem';
 import { EventAnalytics } from './EventAnalytics';
 import { AIAssistantChat } from './AIAssistantChat';
-import { UserRolesManager } from './UserRolesManager';
 
 interface OrganizerDashboardProps {
   onOpenVerificationModal: (certId: string) => void;
@@ -43,14 +40,13 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
     activeEventId,
     setActiveEventId,
     registrations,
-    users,
     currentUser,
     deleteEvent,
     updateEventAgenda,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<
-    'OVERVIEW' | 'REGISTRATIONS' | 'ALLOCATION' | 'VOLUNTEERS' | 'MONITORING' | 'CERTIFICATES' | 'ANALYTICS' | 'USER_ROLES'
+    'OVERVIEW' | 'REGISTRATIONS' | 'ALLOCATION' | 'VOLUNTEERS' | 'CERTIFICATES' | 'ANALYTICS'
   >('OVERVIEW');
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -68,10 +64,8 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
   const tabs = [
     { id: 'OVERVIEW', label: 'Overview & Agenda', icon: Layers },
     { id: 'REGISTRATIONS', label: `Registrations (${eventRegs.length})`, icon: Users },
-    { id: 'USER_ROLES', label: `User Roles (${users.length})`, icon: UserCheck },
     { id: 'ALLOCATION', label: 'Random Panel Allocation', icon: Shuffle },
     { id: 'VOLUNTEERS', label: 'Volunteer Rosters', icon: UserCheck },
-    { id: 'MONITORING', label: 'Live Monitoring & Rounds', icon: Activity },
     { id: 'CERTIFICATES', label: 'Smart Certificate Engine', icon: Award },
     { id: 'ANALYTICS', label: 'Analytics & AI Insights', icon: BarChart3 },
   ];
@@ -347,17 +341,11 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
             {/* REGISTRATIONS TAB */}
             {activeTab === 'REGISTRATIONS' && <RegistrationManager event={activeEvent} />}
 
-            {/* USER ROLES MANAGEMENT TAB */}
-            {activeTab === 'USER_ROLES' && <UserRolesManager />}
-
             {/* ALLOCATION TAB */}
             {activeTab === 'ALLOCATION' && <RandomAllocationEngine event={activeEvent} />}
 
             {/* VOLUNTEERS TAB */}
             {activeTab === 'VOLUNTEERS' && <VolunteerManager event={activeEvent} />}
-
-            {/* MONITORING TAB */}
-            {activeTab === 'MONITORING' && <LiveMonitoring event={activeEvent} />}
 
             {/* CERTIFICATES TAB */}
             {activeTab === 'CERTIFICATES' && (

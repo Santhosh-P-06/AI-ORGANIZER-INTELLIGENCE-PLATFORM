@@ -405,34 +405,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Registration capacity reached. Registrations are currently closed.' };
     }
 
-    // Check duplicate roll number
+    // Extract roll number dynamically
     const rollNo =
       studentData.rollNumber ||
       customResponses?.f_roll ||
       customResponses?.rollNumber ||
+      customResponses?.roll_number ||
       customResponses?.f_roll_no ||
       currentUser?.studentRollNo ||
-      `ROLL_${Date.now()}`;
+      `STU_${Math.floor(1000 + Math.random() * 9000)}`;
     const duplicate = eventRegs.find(r => r.rollNumber?.toLowerCase() === rollNo.toLowerCase());
     if (duplicate) {
       return { success: false, message: `Roll number ${rollNo} is already registered for this event.` };
     }
 
+    const studentName = studentData.studentName || customResponses?.f_name || customResponses?.name || currentUser?.name || 'Registered Student';
+    const email = studentData.email || customResponses?.f_email || customResponses?.email || currentUser?.email || 'student@college.edu';
+    const phone = studentData.phone || customResponses?.f_phone || customResponses?.phone || currentUser?.phone || '+91 99000 11223';
+    const department = studentData.department || customResponses?.f_dept || customResponses?.department || currentUser?.department || 'Computer Science & Engineering';
+    const year = studentData.year || customResponses?.f_year || customResponses?.year || currentUser?.year || '1st Year';
+    const section = studentData.section || customResponses?.f_section || customResponses?.section || currentUser?.section || 'Sec-A';
+    const teamName = studentData.teamName || customResponses?.f_team_name || customResponses?.teamName;
+
     const regId = `reg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const parsedRawMembers = studentData.teamMembers || (customResponses.f_team_members ? String(customResponses.f_team_members).split('\n').map((s: string) => s.trim()).filter(Boolean) : []);
+    
+    const leadMember: TeamMember = {
+      id: `mem_lead_${regId}`,
+      name: studentName,
+      rollNumber: rollNo,
+      email: email,
+      phone: phone,
+      department: department,
+      year: year,
+      section: section,
+      isLead: true,
+      attendanceStatus: 'ABSENT',
+      isActive: true,
+    };
+
+    const squadMembers: TeamMember[] = parsedRawMembers.map((mStr: string, idx: number) => ({
+      id: `mem_${regId}_${idx + 1}`,
+      name: mStr,
+      rollNumber: `${rollNo}-M${idx + 1}`,
+      email: `member${idx + 1}_${rollNo.toLowerCase()}@college.edu`,
+      department: department,
+      year: year,
+      section: section,
+      isLead: false,
+      attendanceStatus: 'ABSENT',
+      isActive: true,
+    }));
+
+    const finalMembersList: TeamMember[] = [leadMember, ...squadMembers];
+
     const newReg: Registration = {
       id: regId,
       eventId,
       studentId: currentUser?.id || `stu_${Date.now()}`,
-      studentName: customResponses?.f_name || studentData.studentName || currentUser?.name || 'Registered Student',
+      studentName: studentName,
       rollNumber: rollNo,
-      email: customResponses?.f_email || customResponses?.email || studentData.email || currentUser?.email || 'student@college.edu',
-      phone: studentData.phone || currentUser?.phone || '+91 99000 11223',
-      department: studentData.department || currentUser?.department || 'Computer Science & Engineering',
-      year: studentData.year || currentUser?.year || '3rd Year (Junior)',
-      section: studentData.section || currentUser?.section || 'Sec-A',
+      email: email,
+      phone: phone,
+      department: department,
+      year: year,
+      section: section,
       college: studentData.college || 'National Institute of Engineering & Technology',
-      teamName: studentData.teamName || customResponses.f_team_name,
+      teamName: teamName,
       teamMembers: studentData.teamMembers || (customResponses.f_team_members ? customResponses.f_team_members.split('\n') : undefined),
+      membersList: finalMembersList,
       customResponses,
       registeredAt: new Date().toISOString(),
       status: 'CONFIRMED',
@@ -440,6 +481,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       attendance: {
         attended: false,
         arrivalStatus: 'ON_TIME',
+        status: 'ABSENT',
       },
       roundTracking: {
         registered: true,
@@ -451,6 +493,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         winnerStatus: 'NONE',
       },
       certificateStatus: 'NOT_ELIGIBLE',
+      teamEligibility: finalMembersList.length >= (targetEvent.teamSizeMin || 1) ? 'ELIGIBLE' : 'INCOMPLETE_TEAM',
     };
 
     setRegistrations(prev => [newReg, ...prev]);

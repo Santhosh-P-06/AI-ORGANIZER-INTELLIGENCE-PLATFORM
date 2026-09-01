@@ -51,24 +51,43 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<PanelAllocation>>({});
   const [searchFilter, setSearchFilter] = useState('');
+  const [candidateFilter, setCandidateFilter] = useState<'PRESENT_ONLY' | 'ALL_REGISTERED'>('PRESENT_ONLY');
 
-  // Extract distinct teams from registrations (prioritizing active present teams from finalized roster)
+  // Extract distinct teams from registrations (prioritizing active present teams from attendance)
   const eventRegs = registrations.filter((r) => r.eventId === event.id);
-  const activePresentRegs = eventRegs.filter((r) => r.attendance?.attended && r.teamEligibility !== 'DISQUALIFIED_ABSENT');
-  const targetRegs = activePresentRegs.length > 0 ? activePresentRegs : eventRegs;
+  const presentRegs = eventRegs.filter((r) => r.attendance?.attended && r.teamEligibility !== 'DISQUALIFIED_ABSENT');
+  const absentRegs = eventRegs.filter((r) => !r.attendance?.attended || r.teamEligibility === 'DISQUALIFIED_ABSENT');
 
-  const teamNames = Array.from(
-    new Set(
-      targetRegs
-        .map((r) => r.teamName || r.studentName)
-        .filter(Boolean)
-    )
-  );
+  const targetRegs = candidateFilter === 'PRESENT_ONLY' && presentRegs.length > 0 
+    ? presentRegs 
+    : (candidateFilter === 'PRESENT_ONLY' ? [] : eventRegs);
 
-  const totalTeams = teamNames.length > 0 ? teamNames : ['NeuralHack', 'AlgoTitans', 'QuantumCrafters', 'DevDynasty', 'CipherZero', 'ApexVision'];
+  const targetTeams = targetRegs.map((r) => ({
+    id: r.id,
+    name: r.teamName || r.studentName,
+    leadName: r.studentName,
+    rollNo: r.rollNumber,
+    attendanceStatus: r.attendance?.status || (r.attendance?.attended ? 'PRESENT' : 'ABSENT'),
+  }));
+
+  const fallbackTeams = [
+    { id: 't1', name: 'NeuralHack', leadName: 'Alex Morgan', rollNo: 'TEAM-1' },
+    { id: 't2', name: 'AlgoTitans', leadName: 'Priya Sharma', rollNo: 'TEAM-2' },
+    { id: 't3', name: 'QuantumCrafters', leadName: 'Karthik Raja', rollNo: 'TEAM-3' },
+    { id: 't4', name: 'DevDynasty', leadName: 'Rahul Verma', rollNo: 'TEAM-4' },
+    { id: 't5', name: 'CipherZero', leadName: 'Sneha Patel', rollNo: 'TEAM-5' },
+    { id: 't6', name: 'ApexVision', leadName: 'Devika Nair', rollNo: 'TEAM-6' },
+  ];
+
+  const totalTeams = targetTeams.length > 0 ? targetTeams : (eventRegs.length === 0 ? fallbackTeams : targetTeams);
 
   // AI & Random Matrix Engine
   const handleRunAllocation = async () => {
+    if (candidateFilter === 'PRESENT_ONLY' && presentRegs.length === 0 && eventRegs.length > 0) {
+      alert('No participants have been marked PRESENT yet! Mark attendance via the Volunteer Dashboard or switch to "All Registered".');
+      return;
+    }
+
     setIsAllocating(true);
     try {
       const res = await fetch('/api/ai/allocate-panels', {
@@ -76,7 +95,7 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           panels,
-          teams: totalTeams,
+          teams: totalTeams.length > 0 ? totalTeams : fallbackTeams,
           availableRooms,
           presentationDuration,
           reviewDuration,
@@ -163,16 +182,16 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
   return (
     <div className="space-y-6">
       {/* Overview & Action Hero Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 border border-indigo-400/30 text-white shadow-xl shadow-indigo-600/15 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-1">
-            <Shuffle className="w-4 h-4" />
+          <div className="flex items-center gap-2 text-indigo-200 text-xs font-bold uppercase tracking-wider mb-1">
+            <Shuffle className="w-4 h-4 text-amber-300" />
             <span>Random & Conflict-Free Panel Allocation Engine</span>
           </div>
-          <h2 className="text-xl font-display font-bold text-slate-100">
+          <h2 className="text-xl font-display font-extrabold text-white">
             Intelligent Jury Matrix & Schedule Allocator
           </h2>
-          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+          <p className="text-xs text-indigo-100/90 mt-1 max-w-2xl font-medium">
             Automatically maps teams across {panels.length} jury panels, guarantees balanced evaluation loads, eliminates room collisions, and sequences presentations across rounds.
           </p>
         </div>
@@ -181,9 +200,9 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
           <button
             onClick={handleRunAllocation}
             disabled={isAllocating}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 disabled:opacity-50 transition-all cursor-pointer"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-indigo-900 font-extrabold text-xs shadow-lg disabled:opacity-50 transition-all cursor-pointer"
           >
-            {isAllocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {isAllocating ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> : <Sparkles className="w-4 h-4 text-indigo-600" />}
             <span>{allocations.length > 0 ? 'Regenerate Matrix' : 'Generate Allocation'}</span>
           </button>
 
@@ -278,6 +297,70 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
               />
             </div>
+          </div>
+
+          {/* Candidate Allocation Pool Selector */}
+          <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-indigo-400" />
+                Candidate Allocation Pool
+              </span>
+              <span className="text-[11px] font-semibold text-slate-400">
+                {candidateFilter === 'PRESENT_ONLY' ? `${presentRegs.length} Verified Present` : `${eventRegs.length} Total Submissions`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <button
+                type="button"
+                onClick={() => setCandidateFilter('PRESENT_ONLY')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  candidateFilter === 'PRESENT_ONLY'
+                    ? 'bg-indigo-600/15 border-indigo-500 text-slate-100 shadow-md shadow-indigo-600/20'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="font-bold flex items-center justify-between">
+                  <span>Verified Present Only</span>
+                  <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                    {presentRegs.length} Teams
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                  ✓ Automatically filters out {absentRegs.length} absent members so juries evaluate only real attendees.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCandidateFilter('ALL_REGISTERED')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  candidateFilter === 'ALL_REGISTERED'
+                    ? 'bg-indigo-600/15 border-indigo-500 text-slate-100 shadow-md shadow-indigo-600/20'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="font-bold flex items-center justify-between">
+                  <span>All Registered</span>
+                  <span className="px-2 py-0.5 text-[10px] rounded-full bg-slate-700 text-slate-200 font-bold">
+                    {eventRegs.length} Teams
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                  Includes all registrations (for pre-event mock scheduling before check-in).
+                </div>
+              </button>
+            </div>
+
+            {candidateFilter === 'PRESENT_ONLY' && presentRegs.length === 0 && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>
+                  No participants are marked <strong>PRESENT</strong> yet. Once volunteers mark attendance at the desk, their squads will appear here.
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../../context/AppContext';
-import { EventItem, EventType, FormField, AgendaItem } from '../../../types';
+import { EventItem, EventType, FormField, AgendaItem, IntelligenceReport } from '../../../types';
 import {
   X,
   Sparkles,
@@ -17,9 +17,28 @@ import {
   MoveUp,
   MoveDown,
   Loader2,
-  HelpCircle,
+  AlertTriangle,
   Award,
+  ShieldAlert,
+  ArrowRight,
+  ArrowLeft,
+  Bot,
+  Zap,
+  Coffee,
+  CheckCircle,
+  HelpCircle,
+  BarChart2,
+  ListOrdered,
+  Gauge,
+  Laptop,
+  Music,
+  Code,
+  FolderKanban,
+  FileSpreadsheet,
+  Activity,
+  Save,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 interface CreateEventModalProps {
   isOpen: boolean;
@@ -33,41 +52,174 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   onEventCreated,
 }) => {
   const { createEvent, currentUser } = useApp();
-  const [step, setStep] = useState<'DETAILS' | 'FORM_GEN' | 'AGENDA_GEN'>('DETAILS');
+  const [step, setStep] = useState<'COMMON_DETAILS' | 'EVENT_SPECIFIC' | 'FORM_GEN' | 'AGENDA_GEN'>('COMMON_DETAILS');
 
-  // Form State
+  // STEP 1 — Common Questions State
   const [title, setTitle] = useState('');
   const [type, setType] = useState<EventType>('Hackathon');
   const [description, setDescription] = useState('');
+  const [isMultiDay, setIsMultiDay] = useState(false);
   const [date, setDate] = useState('2026-09-20');
   const [endDate, setEndDate] = useState('2026-09-20');
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('05:00 PM');
-  const [venue, setVenue] = useState('Main Campus Auditorium & Labs');
-  const [maxStudents, setMaxStudents] = useState(100);
-  const [maxTeams, setMaxTeams] = useState(25);
-  const [teamSizeMin, setTeamSizeMin] = useState(1);
-  const [teamSizeMax, setTeamSizeMax] = useState(4);
-  const [registrationDeadline, setRegistrationDeadline] = useState('2026-09-18');
-  const [coordinatorName, setCoordinatorName] = useState(currentUser?.name || 'Prof. Rajesh Sharma');
-  const [organizingDepartment, setOrganizingDepartment] = useState(currentUser?.department || 'Computer Science & Engineering');
-  const [contactEmail, setContactEmail] = useState(currentUser?.email || 'events@college.edu');
-  const [contactNumber, setContactNumber] = useState('+91 98450 12345');
-  const [numRounds, setNumRounds] = useState(2);
-  const [numPanels, setNumPanels] = useState(3);
-  const [rules, setRules] = useState('1. Original work only.\n2. College ID mandatory at check-in.\n3. 10-min presentation + 5-min Q&A.');
-  const [eligibilityCriteria, setEligibilityCriteria] = useState('Open to all registered college students.');
+  const [expectedParticipants, setExpectedParticipants] = useState(100);
+  const [venue, setVenue] = useState('Campus Main Auditorium & Computing Center');
+  const [numOrganizers, setNumOrganizers] = useState(4);
+  const [numVolunteers, setNumVolunteers] = useState(12);
+  const [fixedActivities, setFixedActivities] = useState('Inauguration at 09:30 AM with Chief Guest, Keynote at 10:00 AM');
+  const [requiredBreaks, setRequiredBreaks] = useState('Lunch Break (01:00 PM - 02:00 PM), Afternoon Tea (04:00 PM - 04:20 PM)');
+  const [specialConstraints, setSpecialConstraints] = useState('Strict code freeze before jury review; 15-minute stage changeover buffer between acts.');
 
-  // AI Generated Schemas
+  // STEP 2 — Event-Specific Parameter Blocks
+  const [eventConfig, setEventConfig] = useState<Record<string, any>>({
+    // Hackathon defaults
+    numTeams: 20,
+    teamSizeMin: 3,
+    teamSizeMax: 4,
+    hackathonDurationHours: 24,
+    eventMode: 'Offline / On-Campus',
+    problemReleaseTime: '09:45 AM',
+    numRounds: 2,
+    hasIdeaRound: true,
+    hasCodingRound: true,
+    hasFinalPresentation: true,
+    mentorCount: 10,
+    mentoringMode: 'Parallel (Mentors visit individual team pods)',
+    numJudges: 5,
+    numPanels: 5,
+    judgeExpertise: 'AI & Data Engineering, System Scalability, Product Design',
+    evalDurationPerTeamMins: 6,
+    qaDurationMins: 2,
+    requiredLabs: 'Innovation Computing Labs 1-4, High-speed LAN, 2x 4S LiPo charging pods',
+    submissionDeadline: '12:00 PM (Day 2)',
+    prizeDistributionTime: '04:00 PM (Day 2)',
+    certificateRequirements: 'Participation Certificate with QR for all active present teams; Merit certificates for Top 3',
+
+    // Paper Presentation defaults
+    paperPresentationMode: 'Team (2-3 Members)',
+    numPapers: 30,
+    paperPresentationMins: 8,
+    paperQaMins: 4,
+    numParallelTracks: 3,
+    paperScreeningRequired: true,
+    paperSubmissionDeadline: '2026-09-15',
+    paperJudgingCriteria: 'Originality, Methodology, Practical Evaluation, Defense Quality',
+
+    // Coding Contest defaults
+    codingFormat: 'Individual Contestant',
+    contestDurationMins: 180,
+    codingRounds: 2,
+    codingPlatform: 'HackerRank / In-House Secure IDE',
+    numProblems: 6,
+    difficultyDistribution: '2 Easy, 3 Medium, 1 Hard',
+    hasPracticeTrial: true,
+    invigilatorCount: 6,
+    techSupportStaffCount: 3,
+
+    // Project Expo defaults
+    numProjects: 32,
+    stallCount: 32,
+    exhibitionAreas: 'Central Engineering Pavilion (Halls A & B)',
+    stallEvalMins: 10,
+    hasPreliminaryScreening: true,
+    stallSetupMins: 60,
+    powerRequirements: '230V 16A per 4 stalls, High-speed Wi-Fi SSID',
+    canEvaluateParallel: true,
+
+    // Robotics Challenge defaults
+    challengeRounds: 2,
+    practiceTimeMins: 45,
+    robotTestingMins: 30,
+    testingArenasCount: 2,
+    arenaSafetyRequirements: 'Polycarbonate protective walls, E-stop switches, LiPo safety boxes',
+    repairBufferMins: 20,
+
+    // Cultural Fest defaults
+    numPerformances: 18,
+    performanceGenres: 'Classical & Western Singing, Synchronized Dance, Theatrical Drama, Fashion Runway, Battle of Bands',
+    durationPerPerfMins: 8,
+    stageChangeoverMins: 4,
+    anchorsCount: 4,
+    soundLightingRequirements: 'Digital soundboard, 6 Wireless Mics, Moving Head Stage Lights, Smoke Haze',
+    chiefGuestAvailability: '04:00 PM - 05:30 PM (Valedictory)',
+
+    // Technical Quiz defaults
+    quizFormat: 'Team of 2 (Duo)',
+    quizRoundsCount: 4,
+    quizRoundNames: 'Round 1: Written Prelims, Round 2: Tech Audio-Visual, Round 3: Infinite Bounce, Round 4: Rapid Buzzer',
+    questionsPerRound: '30 Prelims, 10 Stage per round',
+    hasTieBreaker: true,
+    hasAudienceRound: true,
+    moderatorCount: 2,
+
+    // Workshop & Bootcamp defaults
+    workshopTopic: 'Building Full-Stack GenAI & Agentic Workflows with Next.js & Gemini',
+    targetAudience: '2nd to 4th Year Engineering Students & Researchers',
+    skillLevel: 'Beginner to Intermediate',
+    instructorCount: 2,
+    speakerAvailability: 'Full Day (09:30 AM - 04:30 PM)',
+    sessionsCount: 3,
+    handsOnLabRequired: true,
+    prerequisiteTools: 'VS Code, Node.js v20+, Git, Active Google Cloud / Gemini API key',
+    hasCapstoneQuiz: true,
+  });
+
+  const updateConfig = (field: string, val: any) => {
+    setEventConfig((prev) => ({ ...prev, [field]: val }));
+  };
+
+  // Live AI Feasibility Calculation
+  const feasibilityCheck = useMemo(() => {
+    const panels = Number(eventConfig.numPanels || eventConfig.numParallelTracks || 3);
+    const teams = Number(eventConfig.numTeams || eventConfig.numPapers || eventConfig.numProjects || 20);
+    const evalMins = Number(eventConfig.evalDurationPerTeamMins || eventConfig.paperPresentationMins || eventConfig.stallEvalMins || 6);
+    const qaMins = Number(eventConfig.qaDurationMins || eventConfig.paperQaMins || 2);
+    const totalSlotMins = evalMins + qaMins;
+
+    const teamsPerPanel = Math.ceil(teams / Math.max(1, panels));
+    const totalRequiredEvalMinutes = teamsPerPanel * totalSlotMins;
+    const isOverloaded = totalRequiredEvalMinutes > 240;
+
+    return {
+      teamsPerPanel,
+      totalSlotMins,
+      totalRequiredEvalMinutes,
+      isOverloaded,
+      recommendedPanels: Math.ceil(teams / 6),
+      participantRatio: Math.round(expectedParticipants / Math.max(1, numVolunteers)),
+    };
+  }, [eventConfig, expectedParticipants, numVolunteers]);
+
+  // AI Generated Schemas & Editing States
   const [generatedFields, setGeneratedFields] = useState<FormField[]>([]);
   const [generatedAgenda, setGeneratedAgenda] = useState<AgendaItem[]>([]);
+  const [intelligenceReport, setIntelligenceReport] = useState<IntelligenceReport | null>(null);
   const [isGeneratingForm, setIsGeneratingForm] = useState(false);
   const [isGeneratingAgenda, setIsGeneratingAgenda] = useState(false);
+  const [selectedDayTab, setSelectedDayTab] = useState<string>('ALL');
 
-  // Field editing state
-  const [editingField, setEditingField] = useState<FormField | null>(null);
+  // Interactive Form Field Editing
+  const [showAddField, setShowAddField] = useState(false);
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState<FormField['type']>('text');
+  const [newFieldRequired, setNewFieldRequired] = useState(false);
+  const [newFieldPlaceholder, setNewFieldPlaceholder] = useState('');
 
-  if (!isOpen) return null;
+  // Interactive Agenda Item Editing
+  const [editingAgendaId, setEditingAgendaId] = useState<string | null>(null);
+  const [agendaDraft, setAgendaDraft] = useState<Partial<AgendaItem>>({});
+  const [showAddSlot, setShowAddSlot] = useState(false);
+  const [newSlotDraft, setNewSlotDraft] = useState<Partial<AgendaItem>>({
+    day: 'DAY 1',
+    time: '09:00 AM - 10:00 AM',
+    duration: '60 mins',
+    activity: 'New Activity Session',
+    venue: 'Main Auditorium',
+    responsiblePerson: 'Volunteer Team',
+    resources: 'Standard AV',
+    sessionType: 'MAIN',
+  });
 
   const eventTypes: EventType[] = [
     'Hackathon',
@@ -91,9 +243,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           eventTitle: title,
           eventType: type,
           description,
-          rules,
-          eligibility: eligibilityCriteria,
-          teamSizeMax,
+          teamSizeMax: eventConfig.teamSizeMax || 4,
+          eventConfig,
         }),
       });
       const data = await res.json();
@@ -119,15 +270,26 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           startTime,
           endTime,
           venue,
-          numRounds,
-          numPanels,
-          maxTeams,
-          maxStudents,
+          isMultiDay,
+          startDate: date,
+          endDate: isMultiDay ? endDate : date,
+          numParticipants: expectedParticipants,
+          numTeams: eventConfig.numTeams || eventConfig.numPapers || eventConfig.numProjects || 20,
+          numPanels: eventConfig.numPanels || eventConfig.numParallelTracks || 3,
+          numOrganizers,
+          numVolunteers,
+          fixedActivities,
+          requiredBreaks,
+          specialConstraints,
+          eventConfig,
         }),
       });
       const data = await res.json();
       if (data.agenda) {
         setGeneratedAgenda(data.agenda);
+        if (data.intelligenceReport) {
+          setIntelligenceReport(data.intelligenceReport);
+        }
       }
     } catch (err) {
       console.error('Failed to generate agenda with AI:', err);
@@ -136,11 +298,15 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     }
   };
 
-  const handleNextFromDetails = async () => {
+  const handleNextFromCommon = () => {
     if (!title.trim()) {
-      alert('Please enter an Event Name');
+      alert('Please enter an Event Name.');
       return;
     }
+    setStep('EVENT_SPECIFIC');
+  };
+
+  const handleNextFromSpecific = async () => {
     setStep('FORM_GEN');
     if (generatedFields.length === 0) {
       handleGenerateAIForm();
@@ -154,518 +320,1652 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     }
   };
 
+  // Form Field Operations
+  const toggleFieldRequired = (id: string) => {
+    setGeneratedFields((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, required: !f.required } : f))
+    );
+  };
+
+  const handleAddNewField = () => {
+    if (!newFieldLabel.trim()) return;
+    const newField: FormField = {
+      id: `f_custom_${Date.now()}`,
+      label: newFieldLabel.trim(),
+      type: newFieldType,
+      required: newFieldRequired,
+      placeholder: newFieldPlaceholder.trim() || undefined,
+    };
+    setGeneratedFields((prev) => [...prev, newField]);
+    setNewFieldLabel('');
+    setNewFieldPlaceholder('');
+    setShowAddField(false);
+  };
+
+  const moveField = (idx: number, direction: 'UP' | 'DOWN') => {
+    setGeneratedFields((prev) => {
+      const copy = [...prev];
+      const targetIdx = direction === 'UP' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= copy.length) return prev;
+      const temp = copy[idx];
+      copy[idx] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      return copy;
+    });
+  };
+
+  // Agenda Operations
+  const startEditAgenda = (item: AgendaItem) => {
+    setEditingAgendaId(item.id);
+    setAgendaDraft({ ...item });
+  };
+
+  const saveAgendaEdit = (id: string) => {
+    setGeneratedAgenda((prev) =>
+      prev.map((item) => (item.id === id ? ({ ...item, ...agendaDraft } as AgendaItem) : item))
+    );
+    setEditingAgendaId(null);
+    setAgendaDraft({});
+  };
+
+  const cancelAgendaEdit = () => {
+    setEditingAgendaId(null);
+    setAgendaDraft({});
+  };
+
+  const deleteAgendaItem = (id: string) => {
+    setGeneratedAgenda((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const moveAgendaItem = (idx: number, direction: 'UP' | 'DOWN') => {
+    setGeneratedAgenda((prev) => {
+      const copy = [...prev];
+      const targetIdx = direction === 'UP' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= copy.length) return prev;
+      const temp = copy[idx];
+      copy[idx] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      return copy;
+    });
+  };
+
+  const handleAddNewSlot = () => {
+    if (!newSlotDraft.activity?.trim()) return;
+    const newSlot: AgendaItem = {
+      id: `ag_custom_${Date.now()}`,
+      day: newSlotDraft.day || 'DAY 1',
+      time: newSlotDraft.time || '09:00 AM - 10:00 AM',
+      duration: newSlotDraft.duration || '60 mins',
+      activity: newSlotDraft.activity.trim(),
+      venue: newSlotDraft.venue?.trim() || venue,
+      responsiblePerson: newSlotDraft.responsiblePerson?.trim() || 'Volunteers',
+      resources: newSlotDraft.resources?.trim() || 'Standard AV',
+      sessionType: newSlotDraft.sessionType || 'MAIN',
+      status: 'PENDING',
+    };
+    setGeneratedAgenda((prev) => [...prev, newSlot]);
+    setShowAddSlot(false);
+    setNewSlotDraft({
+      day: 'DAY 1',
+      time: '09:00 AM - 10:00 AM',
+      duration: '60 mins',
+      activity: '',
+      venue,
+      responsiblePerson: 'Volunteers',
+      resources: 'Standard AV',
+      sessionType: 'MAIN',
+    });
+  };
+
+  // Final Event Publication
   const handleFinalPublish = () => {
     const newEvent = createEvent({
-      title,
+      title: title.trim(),
       type,
-      description,
+      description: description.trim() || `Inter-collegiate ${type} organized by Department of Computer Science.`,
       date,
-      endDate,
+      endDate: isMultiDay ? endDate : date,
       startTime,
       endTime,
-      venue,
-      maxStudents,
-      maxTeams,
-      teamSizeMin,
-      teamSizeMax,
-      registrationDeadline,
-      coordinatorName,
-      organizingDepartment,
-      contactEmail,
-      contactNumber,
-      numRounds,
-      numPanels,
-      rules,
-      eligibilityCriteria,
+      venue: venue.trim(),
+      maxStudents: expectedParticipants,
+      maxTeams: Number(eventConfig.numTeams || eventConfig.numProjects || 25),
+      teamSizeMin: Number(eventConfig.teamSizeMin || 1),
+      teamSizeMax: Number(eventConfig.teamSizeMax || 4),
+      registrationDeadline: date,
+      coordinatorName: currentUser?.name || 'Prof. Rajesh Sharma',
+      organizingDepartment: currentUser?.department || 'Computer Science & Engineering',
+      contactEmail: currentUser?.email || 'events@college.edu',
+      contactNumber: currentUser?.phone || '+91 98450 12345',
+      numRounds: Number(eventConfig.numRounds || eventConfig.challengeRounds || 2),
+      numPanels: Number(eventConfig.numPanels || eventConfig.numParallelTracks || 3),
+      rules: specialConstraints || 'Standard code of conduct and institutional ID check applies.',
+      eligibilityCriteria: `Open to all registered undergraduate and postgraduate college students.`,
       status: 'PUBLISHED',
-      registrationForm: generatedFields,
+      registrationForm: generatedFields.length > 0 ? generatedFields : [
+        { id: 'f_name', label: 'Full Student Name', type: 'text', placeholder: 'e.g. Alex Morgan', required: true },
+        { id: 'f_roll', label: 'Roll Number', type: 'text', placeholder: 'e.g. 21CS084', required: true },
+        { id: 'f_email', label: 'College Email ID', type: 'email', placeholder: 'alex@college.edu', required: true },
+        { id: 'f_dept', label: 'Department', type: 'select', required: true, options: ['Computer Science', 'Information Tech', 'AI & DS', 'ECE', 'Mechanical'] },
+      ],
       agenda: generatedAgenda,
+      intelligenceReport: intelligenceReport || undefined,
+      eventConfig,
+      isMultiDay,
+      panels: Array.from({ length: Number(eventConfig.numPanels || eventConfig.numParallelTracks || 3) }, (_, i) => ({
+        id: `pnl_${i + 1}`,
+        name: `Panel ${i + 1} (${type} Jury)`,
+        email: `panel${i + 1}@college.edu`,
+        department: 'Engineering & Computing',
+        assignedRoom: `Room ${101 + i}`,
+        expertise: eventConfig.judgeExpertise || 'Technical & Innovation Evaluation',
+      })),
     });
 
     onEventCreated(newEvent);
+    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
     onClose();
   };
 
-  // Form Field Modifiers
-  const addCustomField = () => {
-    const newField: FormField = {
-      id: `f_${Date.now()}`,
-      label: 'New Custom Field',
-      type: 'text',
-      placeholder: 'Enter response...',
-      required: false,
-      helpText: '',
-    };
-    setGeneratedFields(prev => [...prev, newField]);
-  };
+  // Agenda Days filtering
+  const distinctDays = useMemo(() => {
+    const days = Array.from(new Set(generatedAgenda.map((a) => a.day || 'DAY 1')));
+    return days.length > 0 ? days : ['DAY 1'];
+  }, [generatedAgenda]);
 
-  const removeField = (id: string) => {
-    setGeneratedFields(prev => prev.filter(f => f.id !== id));
-  };
+  const filteredAgenda = useMemo(() => {
+    if (selectedDayTab === 'ALL') return generatedAgenda;
+    return generatedAgenda.filter((a) => (a.day || 'DAY 1') === selectedDayTab);
+  }, [generatedAgenda, selectedDayTab]);
 
-  const toggleFieldRequired = (id: string) => {
-    setGeneratedFields(prev => prev.map(f => f.id === id ? { ...f, required: !f.required } : f));
-  };
-
-  const moveField = (index: number, direction: 'up' | 'down') => {
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= generatedFields.length) return;
-    const newFields = [...generatedFields];
-    const temp = newFields[index];
-    newFields[index] = newFields[targetIdx];
-    newFields[targetIdx] = temp;
-    setGeneratedFields(newFields);
-  };
-
-  const updateField = (id: string, updates: Partial<FormField>) => {
-    setGeneratedFields(prev => prev.map(field => field.id === id ? { ...field, ...updates } : field));
-  };
-
-  const updateAgendaItem = (id: string, updates: Partial<AgendaItem>) => {
-    setGeneratedAgenda(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
-  };
-
-  const addAgendaItem = () => {
-    setGeneratedAgenda(prev => [...prev, {
-      id: `ag_custom_${Date.now()}`,
-      time: '09:00 AM - 10:00 AM',
-      activity: 'New agenda activity',
-      venue,
-      responsiblePerson: coordinatorName,
-      status: 'PENDING',
-    }]);
-  };
-
-  const removeAgendaItem = (id: string) => {
-    setGeneratedAgenda(prev => prev.filter(item => item.id !== id));
-  };
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Modal Header */}
-        <div className="p-6 pb-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-indigo-400" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
+      <div
+        className="w-full max-w-4xl rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[92vh] my-auto animate-scale-in"
+        style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
+      >
+        {/* Header with Step Wizard Progress */}
+        <div
+          className="p-5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-20"
+          style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}
+        >
+          <div>
+            <div className="flex items-center gap-2 text-indigo-500 font-bold text-xs uppercase tracking-wider mb-1">
+              <Sparkles className="w-4 h-4" />
+              <span>AI Multi-Event Orchestration Wizard</span>
             </div>
-            <div>
-              <h2 className="text-lg font-display font-bold text-slate-100">
-                Create Event with AI Intelligence
-              </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${step === 'DETAILS' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                  1. Event Details
-                </span>
-                <span className="text-slate-600 text-xs">→</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${step === 'FORM_GEN' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                  2. AI Registration Form
-                </span>
-                <span className="text-slate-600 text-xs">→</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${step === 'AGENDA_GEN' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                  3. AI Agenda Engine
-                </span>
-              </div>
-            </div>
+            <h2 className="text-xl font-display font-extrabold" style={{ color: 'var(--text-primary)' }}>
+              {step === 'COMMON_DETAILS' && 'Step 1: Common Parameters & Logistics'}
+              {step === 'EVENT_SPECIFIC' && `Step 2: Specific Requirements for ${type}`}
+              {step === 'FORM_GEN' && 'Step 3: Registration Form Schema & Fields'}
+              {step === 'AGENDA_GEN' && 'Step 4: Editable Event Schedule & Timeline'}
+            </h2>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800">
-            <X className="w-5 h-5" />
-          </button>
+
+          {/* Stepper Navigation Pills */}
+          <div className="flex items-center gap-1.5 bg-slate-950/40 p-1 rounded-2xl border border-slate-800 text-[11px] font-bold">
+            <span className={`px-2.5 py-1 rounded-xl transition-all ${step === 'COMMON_DETAILS' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>
+              1. Basics
+            </span>
+            <span className={`px-2.5 py-1 rounded-xl transition-all ${step === 'EVENT_SPECIFIC' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>
+              2. {type.split(' ')[0]}
+            </span>
+            <span className={`px-2.5 py-1 rounded-xl transition-all ${step === 'FORM_GEN' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>
+              3. Form
+            </span>
+            <span className={`px-2.5 py-1 rounded-xl transition-all ${step === 'AGENDA_GEN' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>
+              4. Schedule
+            </span>
+            <button
+              onClick={onClose}
+              className="p-1 text-slate-400 hover:text-slate-100 transition-colors ml-1 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* STEP 1: Basic Event Information */}
-          {step === 'DETAILS' && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Event Title *
+        {/* Modal Body Content */}
+        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+          {/* ========================================================================= */}
+          {/* STEP 1: COMMON QUESTIONS (Standard for All Event Types)                   */}
+          {/* ========================================================================= */}
+          {step === 'COMMON_DETAILS' && (
+            <div className="space-y-5 animate-fade-in">
+              <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs flex items-center gap-3">
+                <Bot className="w-5 h-5 shrink-0" />
+                <span>
+                  Every event begins with foundational logistics. Select your event category below to unlock tailored operational blocks in Step 2.
+                </span>
+              </div>
+
+              {/* Event Type Grid Selector */}
+              <div>
+                <label className="block font-bold text-xs mb-2 uppercase tracking-wider text-slate-400">
+                  Select Event Category *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {eventTypes.map((t) => {
+                    const isSelected = type === t;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setType(t)}
+                        className={`p-3 rounded-2xl border text-left font-bold transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                          isSelected
+                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400 shadow-md shadow-indigo-500/10'
+                            : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] leading-tight">{t}</span>
+                          {isSelected && <CheckCircle className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Event Title & Objective */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                    Event Title / Official Name *
                   </label>
                   <input
                     type="text"
                     required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. AI HackSprint 2026: 24-Hour Innovation Marathon"
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-medium"
+                    placeholder="e.g. TechnoHack 2026 • AI Collegiate Challenge"
+                    className="w-full px-3.5 py-2.5 rounded-xl border text-xs font-semibold focus:outline-none"
+                    style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Event Type</label>
-                  <select
-                    value={type}
-                    onChange={(e) => setType(e.target.value as EventType)}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                  >
-                    {eventTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Main Venue / Location</label>
-                  <input
-                    type="text"
-                    value={venue}
-                    onChange={(e) => setVenue(e.target.value)}
-                    placeholder="e.g. Auditorium Alpha & Labs 1-4"
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Event Description</label>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                    Event Description & Core Objectives
+                  </label>
                   <textarea
                     rows={2}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Comprehensive description of the event theme, objectives, and mentorship opportunities..."
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    placeholder="Describe the primary mission, technological tracks, and learning outcomes..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none"
+                    style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                  />
+              {/* Date & Multi-day configuration */}
+              <div className="p-4 rounded-2xl border space-y-3" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                    <Calendar className="w-4 h-4 text-indigo-500" />
+                    Timeline & Multi-Day Configuration
+                  </span>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={isMultiDay}
+                      onChange={(e) => setIsMultiDay(e.target.checked)}
+                      className="rounded border-slate-700 text-indigo-600 focus:ring-0"
+                    />
+                    <span>Multi-Day Event</span>
+                  </label>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">End Date</label>
+                    <label className="block text-slate-400 mb-1">Start Date</label>
                     <input
                       type="date"
-                      min={date}
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border text-xs"
+                      style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Start Time</label>
+                    <label className="block text-slate-400 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      disabled={!isMultiDay}
+                      value={isMultiDay ? endDate : date}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border text-xs disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">Daily Start Time</label>
                     <input
                       type="text"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
                       placeholder="09:00 AM"
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
+                      className="w-full px-3 py-2 rounded-xl border text-xs"
+                      style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                     />
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">End Time</label>
+                  <div>
+                    <label className="block text-slate-400 mb-1">Daily End Time</label>
                     <input
                       type="text"
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
                       placeholder="05:00 PM"
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
+                      className="w-full px-3 py-2 rounded-xl border text-xs"
+                      style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                     />
                   </div>
                 </div>
+              </div>
 
+              {/* Location & Human Resources Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Max Student Capacity</label>
+                  <label className="block font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                    Expected Total Participants
+                  </label>
                   <input
                     type="number"
-                    value={maxStudents}
-                    onChange={(e) => setMaxStudents(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
+                    value={expectedParticipants}
+                    onChange={(e) => setExpectedParticipants(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border text-xs"
+                    style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                   />
                 </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Max Teams</label>
-                    <input
-                      type="number"
-                      value={maxTeams}
-                      onChange={(e) => setMaxTeams(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Team Size (Max)</label>
-                    <input
-                      type="number"
-                      value={teamSizeMax}
-                      onChange={(e) => setTeamSizeMax(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Number of Rounds</label>
+                  <label className="block font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                    Faculty / Lead Organisers Count
+                  </label>
                   <input
                     type="number"
-                    value={numRounds}
-                    onChange={(e) => setNumRounds(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
+                    value={numOrganizers}
+                    onChange={(e) => setNumOrganizers(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border text-xs"
+                    style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Number of Evaluation Panels</label>
+                  <label className="block font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                    Student Volunteers Count
+                  </label>
                   <input
                     type="number"
-                    value={numPanels}
-                    onChange={(e) => setNumPanels(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
+                    value={numVolunteers}
+                    onChange={(e) => setNumVolunteers(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border text-xs"
+                    style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Event Coordinator</label>
+              <div>
+                <label className="block font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  Main Venue / Central Campus Location
+                </label>
+                <input
+                  type="text"
+                  value={venue}
+                  onChange={(e) => setVenue(e.target.value)}
+                  placeholder="e.g. University Convention Center & Computing Labs"
+                  className="w-full px-3.5 py-2.5 rounded-xl border text-xs"
+                  style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                />
+              </div>
+
+              {/* Fixed Activities & Break Requirements */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block font-semibold text-slate-300">
+                    Fixed-Time Activities (Inauguration, Keynote, Dignitary visits)
+                  </label>
                   <input
                     type="text"
-                    value={coordinatorName}
-                    onChange={(e) => setCoordinatorName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
+                    value={fixedActivities}
+                    onChange={(e) => setFixedActivities(e.target.value)}
+                    placeholder="e.g. Inauguration at 09:30 AM, Keynote at 10:00 AM"
+                    className="w-full px-3.5 py-2.5 rounded-xl border text-xs"
+                    style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Organising Department</label>
+                <div className="space-y-1">
+                  <label className="block font-semibold text-slate-300">
+                    Required Meals & Break Windows
+                  </label>
                   <input
                     type="text"
-                    value={organizingDepartment}
-                    onChange={(e) => setOrganizingDepartment(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Rules & Guidelines</label>
-                  <textarea
-                    rows={2}
-                    value={rules}
-                    onChange={(e) => setRules(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 font-mono text-[11px]"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Eligibility Criteria</label>
-                  <input
-                    type="text"
-                    value={eligibilityCriteria}
-                    onChange={(e) => setEligibilityCriteria(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100"
+                    value={requiredBreaks}
+                    onChange={(e) => setRequiredBreaks(e.target.value)}
+                    placeholder="e.g. Lunch (01:00 PM - 02:00 PM), Tea (04:00 PM)"
+                    className="w-full px-3.5 py-2.5 rounded-xl border text-xs"
+                    style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                   />
                 </div>
               </div>
             </div>
           )}
 
-          {/* STEP 2: AI Registration Form Generator & Customizer */}
-          {step === 'FORM_GEN' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between flex-wrap gap-3">
-                <div>
-                  <div className="flex items-center gap-2 text-indigo-300 font-bold text-sm">
-                    <Sparkles className="w-4 h-4 text-indigo-400" />
-                    <span>AI-Generated Dynamic Registration Schema</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    The AI analyzed your event type ({type}) and team size ({teamSizeMax}) to construct tailored form fields.
-                  </p>
+          {/* ========================================================================= */}
+          {/* STEP 2: DYNAMIC EVENT-SPECIFIC QUESTIONS (Custom for Each Event Type)    */}
+          {/* ========================================================================= */}
+          {step === 'EVENT_SPECIFIC' && (
+            <div className="space-y-5 animate-fade-in">
+              <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <Zap className="w-5 h-5 shrink-0" />
+                  <span>
+                    Configuring specific parameters for <strong>{type}</strong>. The engine uses these exact metrics to construct conflict-free parallel rooms and jury evaluation matrices.
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleGenerateAIForm}
-                  disabled={isGeneratingForm}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md disabled:opacity-50"
-                >
-                  {isGeneratingForm ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  <span>Regenerate with AI</span>
-                </button>
               </div>
 
-              {/* Field List */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-1">
-                  <span>Registration Fields ({generatedFields.length})</span>
-                  <button
-                    type="button"
-                    onClick={addCustomField}
-                    className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 hover:underline"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Custom Field</span>
-                  </button>
+              {/* HACKATHON SPECIFIC BLOCK */}
+              {type === 'Hackathon' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Expected Teams Count</label>
+                      <input
+                        type="number"
+                        value={eventConfig.numTeams}
+                        onChange={(e) => updateConfig('numTeams', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Team Size Min / Max</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={eventConfig.teamSizeMin}
+                          onChange={(e) => updateConfig('teamSizeMin', Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-xl border text-center"
+                          style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                        />
+                        <span className="text-slate-400">to</span>
+                        <input
+                          type="number"
+                          value={eventConfig.teamSizeMax}
+                          onChange={(e) => updateConfig('teamSizeMax', Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-xl border text-center"
+                          style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Hackathon Duration (Hours)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.hackathonDurationHours}
+                        onChange={(e) => updateConfig('hackathonDurationHours', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Jury Panels Count</label>
+                      <input
+                        type="number"
+                        value={eventConfig.numPanels}
+                        onChange={(e) => updateConfig('numPanels', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Presentation Slot per Team (Mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.evalDurationPerTeamMins}
+                        onChange={(e) => updateConfig('evalDurationPerTeamMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Technical Mentors Count</label>
+                      <input
+                        type="number"
+                        value={eventConfig.mentorCount}
+                        onChange={(e) => updateConfig('mentorCount', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Judging & Evaluation Criteria</label>
+                    <input
+                      type="text"
+                      value={eventConfig.judgeExpertise}
+                      onChange={(e) => updateConfig('judgeExpertise', e.target.value)}
+                      placeholder="e.g. Technical Architecture (30%), Innovation (30%), Live Execution (25%), Pitch (15%)"
+                      className="w-full px-3.5 py-2.5 rounded-xl border"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* PAPER PRESENTATION SPECIFIC BLOCK */}
+              {type === 'Paper Presentation' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Expected Papers Count</label>
+                      <input
+                        type="number"
+                        value={eventConfig.numPapers}
+                        onChange={(e) => updateConfig('numPapers', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Presentation Time (mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.paperPresentationMins}
+                        onChange={(e) => updateConfig('paperPresentationMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Q&A Defense Time (mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.paperQaMins}
+                        onChange={(e) => updateConfig('paperQaMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Parallel Presentation Tracks / Rooms</label>
+                      <input
+                        type="number"
+                        value={eventConfig.numParallelTracks}
+                        onChange={(e) => updateConfig('numParallelTracks', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Paper Submission & Screening Deadline</label>
+                      <input
+                        type="date"
+                        value={eventConfig.paperSubmissionDeadline}
+                        onChange={(e) => updateConfig('paperSubmissionDeadline', e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* CODING CONTEST SPECIFIC BLOCK */}
+              {type === 'Coding Contest' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Contest Duration (Mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.contestDurationMins}
+                        onChange={(e) => updateConfig('contestDurationMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Number of Problems</label>
+                      <input
+                        type="number"
+                        value={eventConfig.numProblems}
+                        onChange={(e) => updateConfig('numProblems', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Coding Platform</label>
+                      <input
+                        type="text"
+                        value={eventConfig.codingPlatform}
+                        onChange={(e) => updateConfig('codingPlatform', e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Problem Difficulty Distribution</label>
+                    <input
+                      type="text"
+                      value={eventConfig.difficultyDistribution}
+                      onChange={(e) => updateConfig('difficultyDistribution', e.target.value)}
+                      placeholder="e.g. 2 Easy, 3 Medium, 1 Hard Dynamic Programming"
+                      className="w-full px-3.5 py-2.5 rounded-xl border"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* PROJECT EXPO SPECIFIC BLOCK */}
+              {type === 'Project Expo' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Total Projects / Stalls</label>
+                      <input
+                        type="number"
+                        value={eventConfig.numProjects}
+                        onChange={(e) => updateConfig('numProjects', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Jury Evaluation per Stall (mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.stallEvalMins}
+                        onChange={(e) => updateConfig('stallEvalMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Setup & Calibration Time (mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.stallSetupMins}
+                        onChange={(e) => updateConfig('stallSetupMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Stalls Infrastructure & Power Requirements</label>
+                    <input
+                      type="text"
+                      value={eventConfig.powerRequirements}
+                      onChange={(e) => updateConfig('powerRequirements', e.target.value)}
+                      placeholder="e.g. 230V 16A outlets per 4 stalls, High-speed LAN, Heavy prototype tables"
+                      className="w-full px-3.5 py-2.5 rounded-xl border"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* ROBOTICS CHALLENGE SPECIFIC BLOCK */}
+              {type === 'Robotics Challenge' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Number of Robot Teams</label>
+                      <input
+                        type="number"
+                        value={eventConfig.numTeams}
+                        onChange={(e) => updateConfig('numTeams', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Practice / Calibration Time (mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.practiceTimeMins}
+                        onChange={(e) => updateConfig('practiceTimeMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Pit Repair Buffer between Heats (mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.repairBufferMins}
+                        onChange={(e) => updateConfig('repairBufferMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Arena Safety & Compliance Rules</label>
+                    <input
+                      type="text"
+                      value={eventConfig.arenaSafetyRequirements}
+                      onChange={(e) => updateConfig('arenaSafetyRequirements', e.target.value)}
+                      placeholder="e.g. Polycarbonate protective shields, Fail-safe radio cutoffs, LiPo fire safe bags"
+                      className="w-full px-3.5 py-2.5 rounded-xl border"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* CULTURAL FEST SPECIFIC BLOCK */}
+              {type === 'Cultural Fest' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Total Performances Count</label>
+                      <input
+                        type="number"
+                        value={eventConfig.numPerformances}
+                        onChange={(e) => updateConfig('numPerformances', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Avg Performance Slot (mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.durationPerPerfMins}
+                        onChange={(e) => updateConfig('durationPerPerfMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Stage Changeover Buffer (mins)</label>
+                      <input
+                        type="number"
+                        value={eventConfig.stageChangeoverMins}
+                        onChange={(e) => updateConfig('stageChangeoverMins', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Stage Genres & Audio-Visual Specs</label>
+                    <input
+                      type="text"
+                      value={eventConfig.performanceGenres}
+                      onChange={(e) => updateConfig('performanceGenres', e.target.value)}
+                      placeholder="e.g. Classical Solos, Western Choreography, Battle of Bands, Runway Fashion"
+                      className="w-full px-3.5 py-2.5 rounded-xl border"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* TECHNICAL QUIZ SPECIFIC BLOCK */}
+              {type === 'Technical Quiz' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Number of Quiz Rounds</label>
+                      <input
+                        type="number"
+                        value={eventConfig.quizRoundsCount}
+                        onChange={(e) => updateConfig('quizRoundsCount', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Questions Breakdown</label>
+                      <input
+                        type="text"
+                        value={eventConfig.questionsPerRound}
+                        onChange={(e) => updateConfig('questionsPerRound', e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Stage Quiz Masters Count</label>
+                      <input
+                        type="number"
+                        value={eventConfig.moderatorCount}
+                        onChange={(e) => updateConfig('moderatorCount', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Round Names & Structure</label>
+                    <input
+                      type="text"
+                      value={eventConfig.quizRoundNames}
+                      onChange={(e) => updateConfig('quizRoundNames', e.target.value)}
+                      placeholder="e.g. Round 1: Written Prelims, Round 2: Tech Audio-Visual, Round 3: Infinite Bounce, Round 4: Rapid Buzzer"
+                      className="w-full px-3.5 py-2.5 rounded-xl border"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* WORKSHOP & BOOTCAMP SPECIFIC BLOCK */}
+              {type === 'Workshop & Bootcamp' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Instructors / Speakers Count</label>
+                      <input
+                        type="number"
+                        value={eventConfig.instructorCount}
+                        onChange={(e) => updateConfig('instructorCount', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Hands-on Sessions Count</label>
+                      <input
+                        type="number"
+                        value={eventConfig.sessionsCount}
+                        onChange={(e) => updateConfig('sessionsCount', Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Target Skill Level</label>
+                      <select
+                        value={eventConfig.skillLevel}
+                        onChange={(e) => updateConfig('skillLevel', e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      >
+                        <option value="Beginner">Beginner (Zero Prior Knowledge)</option>
+                        <option value="Beginner to Intermediate">Beginner to Intermediate</option>
+                        <option value="Intermediate to Advanced">Intermediate to Advanced</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Workshop Technical Topic & Focus Area</label>
+                    <input
+                      type="text"
+                      value={eventConfig.workshopTopic}
+                      onChange={(e) => updateConfig('workshopTopic', e.target.value)}
+                      placeholder="e.g. Building Full-Stack GenAI & Agentic Workflows with Next.js & Gemini"
+                      className="w-full px-3.5 py-2.5 rounded-xl border"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Required Software Prerequisites</label>
+                    <input
+                      type="text"
+                      value={eventConfig.prerequisiteTools}
+                      onChange={(e) => updateConfig('prerequisiteTools', e.target.value)}
+                      placeholder="e.g. VS Code, Node.js v20+, Git, Active Google Cloud / Gemini API key"
+                      className="w-full px-3.5 py-2.5 rounded-xl border"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* LIVE AI FEASIBILITY & CONFLICT INTELLIGENCE CARD */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Gauge className="w-4 h-4 text-emerald-400" />
+                    <span className="font-bold text-xs uppercase tracking-wider text-slate-200">
+                      Live Operational Feasibility & Workload Analysis
+                    </span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    feasibilityCheck.isOverloaded
+                      ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                      : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                  }`}>
+                    {feasibilityCheck.isOverloaded ? 'Optimization Recommended' : 'Optimal Resource Balance'}
+                  </span>
                 </div>
 
-                <div className="divide-y divide-slate-800 rounded-xl bg-slate-950 border border-slate-800">
-                  {generatedFields.map((field, idx) => (
-                    <div key={field.id} className="p-3.5 flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <span className="font-mono text-slate-500 text-[10px] w-4">{idx + 1}.</span>
-                        <div className="truncate">
-                          <div className="font-semibold text-slate-200 flex items-center gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px]">
+                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">Teams / Panel</span>
+                    <strong className="text-slate-200 font-mono text-xs">{feasibilityCheck.teamsPerPanel} Teams</strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">Slot Duration</span>
+                    <strong className="text-slate-200 font-mono text-xs">{feasibilityCheck.totalSlotMins} Mins/Team</strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">Total Eval Shift</span>
+                    <strong className="text-indigo-400 font-mono text-xs">{feasibilityCheck.totalRequiredEvalMinutes} Mins</strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">Volunteer Ratio</span>
+                    <strong className="text-slate-200 font-mono text-xs">1 : {feasibilityCheck.participantRatio} Students</strong>
+                  </div>
+                </div>
+
+                {feasibilityCheck.isOverloaded ? (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <strong>AI Suggestion:</strong> Each panel requires {feasibilityCheck.totalRequiredEvalMinutes} minutes of continuous evaluation. To prevent schedule delays, consider increasing jury panels to <strong>{feasibilityCheck.recommendedPanels}</strong> or reducing presentation duration to 8 mins.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                    <span>
+                      Jury evaluation workload is perfectly balanced. Total time fits cleanly within the designated session window.
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* STEP 3: DYNAMIC REGISTRATION FORM GENERATOR (With Optional Toggle & Add)   */}
+          {/* ========================================================================= */}
+          {step === 'FORM_GEN' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                    Registration Form Schema & Questions
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Fields automatically customized for <strong>{type}</strong>. You can toggle fields between <strong>Required</strong> and <strong>Optional</strong>, or add new questions.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddField(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Question</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateAIForm}
+                    disabled={isGeneratingForm}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-bold text-xs hover:bg-indigo-600/30 transition-all cursor-pointer"
+                  >
+                    {isGeneratingForm ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    <span>Regenerate with AI</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Add Custom Question Form Drawer */}
+              {showAddField && (
+                <div className="p-4 rounded-2xl bg-slate-900 border border-indigo-500/40 space-y-3 animate-fade-in shadow-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-400 text-xs flex items-center gap-1.5">
+                      <Plus className="w-4 h-4" /> Add Custom Registration Field
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddField(false)}
+                      className="text-slate-400 hover:text-slate-200"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-400 mb-1">Field Label / Question *</label>
+                      <input
+                        type="text"
+                        value={newFieldLabel}
+                        onChange={(e) => setNewFieldLabel(e.target.value)}
+                        placeholder="e.g. GitHub Repository, Project Pitch Deck Link..."
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Field Input Type</label>
+                      <select
+                        value={newFieldType}
+                        onChange={(e) => setNewFieldType(e.target.value as any)}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      >
+                        <option value="text">Text (Single Line)</option>
+                        <option value="textarea">Textarea (Multi Line)</option>
+                        <option value="email">Email Address</option>
+                        <option value="tel">Phone / Mobile</option>
+                        <option value="number">Number</option>
+                        <option value="select">Dropdown Select</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Placeholder Text (Optional)</label>
+                      <input
+                        type="text"
+                        value={newFieldPlaceholder}
+                        onChange={(e) => setNewFieldPlaceholder(e.target.value)}
+                        placeholder="e.g. https://github.com/..."
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div className="flex items-end pb-1">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={newFieldRequired}
+                          onChange={(e) => setNewFieldRequired(e.target.checked)}
+                          className="rounded border-slate-700 text-indigo-600 focus:ring-0"
+                        />
+                        <span>Is this field mandatory (Required)?</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddField(false)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 text-xs font-semibold hover:text-white cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddNewField}
+                      className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Add Field to Form
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Fields List */}
+              <div className="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
+                {generatedFields.map((field, idx) => (
+                  <div
+                    key={field.id}
+                    className="p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all hover:border-slate-700"
+                    style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col gap-0.5">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => moveField(idx, 'UP')}
+                          className="text-slate-500 hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                        >
+                          <MoveUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === generatedFields.length - 1}
+                          onClick={() => moveField(idx, 'DOWN')}
+                          className="text-slate-500 hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                        >
+                          <MoveDown className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <span className="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 font-mono text-[10px] font-bold flex items-center justify-center">
+                        {idx + 1}
+                      </span>
+
+                      <div>
+                        <div className="font-bold text-xs flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                          <span>{field.label}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          Type: {field.type} {field.options ? `• [${field.options.length} options]` : ''} {field.placeholder ? `• "${field.placeholder}"` : ''}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* Optional / Required Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={() => toggleFieldRequired(field.id)}
+                        className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          field.required
+                            ? 'bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25'
+                            : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                        }`}
+                        title="Click to toggle between Required and Optional"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${field.required ? 'bg-rose-400 animate-pulse' : 'bg-slate-500'}`} />
+                        <span>{field.required ? 'Required (Click for Optional)' : 'Optional (Click for Required)'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGeneratedFields((prev) => prev.filter((f) => f.id !== field.id));
+                        }}
+                        className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Field"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* STEP 4: FULLY EDITABLE SCHEDULE TIMELINE                                   */}
+          {/* ========================================================================= */}
+          {step === 'AGENDA_GEN' && (
+            <div className="space-y-4 animate-fade-in">
+              {/* Header & Controls */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                    Editable Event Schedule & Timeline
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Click <strong>Edit</strong> on any session to adjust timings, duration, venue, or personnel. You can also reorder or add custom slots.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSlot(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Schedule Slot</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateAIAgenda}
+                    disabled={isGeneratingAgenda}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-bold text-xs hover:bg-indigo-600/30 transition-all cursor-pointer"
+                  >
+                    {isGeneratingAgenda ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    <span>Regenerate</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Day Filter Tabs */}
+              {distinctDays.length > 1 && (
+                <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDayTab('ALL')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                      selectedDayTab === 'ALL' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    All Days
+                  </button>
+                  {distinctDays.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setSelectedDayTab(d)}
+                      className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                        selectedDayTab === d ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Custom Slot Drawer */}
+              {showAddSlot && (
+                <div className="p-4 rounded-2xl bg-slate-900 border border-indigo-500/40 space-y-3 animate-fade-in shadow-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-400 text-xs flex items-center gap-1.5">
+                      <Plus className="w-4 h-4" /> Add New Schedule Slot
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSlot(false)}
+                      className="text-slate-400 hover:text-slate-200"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Day Tag</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.day}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, day: e.target.value })}
+                        placeholder="DAY 1"
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-400 mb-1">Time Slot Window</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.time}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, time: e.target.value })}
+                        placeholder="09:00 AM - 10:00 AM"
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Duration</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.duration}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, duration: e.target.value })}
+                        placeholder="60 mins"
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-400 mb-1">Activity / Session Title *</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.activity}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, activity: e.target.value })}
+                        placeholder="e.g. Grand Finale Presentations & Demo"
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Session Type Badge</label>
+                      <select
+                        value={newSlotDraft.sessionType}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, sessionType: e.target.value as any })}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      >
+                        <option value="MAIN">MAIN</option>
+                        <option value="PARALLEL">PARALLEL</option>
+                        <option value="BREAK">BREAK</option>
+                        <option value="SETUP">SETUP</option>
+                        <option value="BUFFER">BUFFER</option>
+                        <option value="EVALUATION">EVALUATION</option>
+                        <option value="KEYNOTE">KEYNOTE</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Venue / Room</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.venue}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, venue: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Responsible Person / Group</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.responsiblePerson}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, responsiblePerson: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Resources Required</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.resources}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, resources: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSlot(false)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 text-xs font-semibold hover:text-white cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddNewSlot}
+                      className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Add Slot to Timeline
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Agenda Items List */}
+              <div className="space-y-3 max-h-[52vh] overflow-y-auto pr-1">
+                {filteredAgenda.map((item, idx) => {
+                  const isEditing = editingAgendaId === item.id;
+
+                  if (isEditing) {
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/50 space-y-3 shadow-xl animate-fade-in"
+                      >
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                          <span className="font-bold text-indigo-400 text-xs flex items-center gap-1.5">
+                            <Edit3 className="w-3.5 h-3.5" /> Edit Schedule Item #{idx + 1}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">{item.id}</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Day Tag</label>
                             <input
-                              value={field.label}
-                              onChange={(e) => updateField(field.id, { label: e.target.value })}
-                              aria-label={`Field ${idx + 1} name`}
-                              className="min-w-0 flex-1 bg-transparent border-b border-transparent hover:border-slate-600 focus:border-indigo-500 outline-none"
+                              type="text"
+                              value={agendaDraft.day || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, day: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
                             />
-                            {field.required ? (
-                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-950/60 text-rose-300 border border-rose-500/30">
-                                Required
-                              </span>
-                            ) : (
-                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
-                                Optional
-                              </span>
-                            )}
                           </div>
-                          <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
-                            <span className="uppercase text-[10px] text-indigo-400">{field.type}</span>
-                            {field.placeholder && <span>• "{field.placeholder}"</span>}
+                          <div className="sm:col-span-2">
+                            <label className="block text-slate-400 text-[10px] mb-1">Time Slot Window</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.time || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, time: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs font-mono font-bold"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Duration</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.duration || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, duration: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div className="sm:col-span-2">
+                            <label className="block text-slate-400 text-[10px] mb-1">Activity Name</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.activity || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, activity: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs font-bold"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Session Type</label>
+                            <select
+                              value={agendaDraft.sessionType || 'MAIN'}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, sessionType: e.target.value as any })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            >
+                              <option value="MAIN">MAIN</option>
+                              <option value="PARALLEL">PARALLEL</option>
+                              <option value="BREAK">BREAK</option>
+                              <option value="SETUP">SETUP</option>
+                              <option value="BUFFER">BUFFER</option>
+                              <option value="EVALUATION">EVALUATION</option>
+                              <option value="KEYNOTE">KEYNOTE</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Venue / Room</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.venue || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, venue: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Responsible Person</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.responsiblePerson || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, responsiblePerson: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Resources</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.resources || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, resources: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-1 border-t border-slate-800">
+                          <button
+                            type="button"
+                            onClick={cancelAgendaEdit}
+                            className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 text-xs font-semibold hover:text-white cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => saveAgendaEdit(item.id)}
+                            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Save Changes</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-3.5 rounded-2xl border space-y-2 transition-all hover:border-slate-700 group"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-0.5 mr-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => moveAgendaItem(idx, 'UP')}
+                              className="text-slate-500 hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                              title="Move Slot Up"
+                            >
+                              <MoveUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === filteredAgenda.length - 1}
+                              onClick={() => moveAgendaItem(idx, 'DOWN')}
+                              className="text-slate-500 hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                              title="Move Slot Down"
+                            >
+                              <MoveDown className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          <span className="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-slate-800 text-slate-300">
+                            {item.day || 'DAY 1'}
+                          </span>
+                          <span className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
+                            {item.activity}
+                          </span>
+                          {item.sessionType && (
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                              item.sessionType === 'PARALLEL' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                              item.sessionType === 'KEYNOTE' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                              item.sessionType === 'EVALUATION' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
+                              item.sessionType === 'BREAK' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                              'bg-slate-800 text-slate-400'
+                            }`}>
+                              {item.sessionType}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs font-bold text-indigo-400">
+                            {item.time} ({item.duration || '30 mins'})
+                          </span>
+
+                          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                            <button
+                              type="button"
+                              onClick={() => startEditAgenda(item)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 font-bold text-[11px] transition-colors cursor-pointer"
+                              title="Edit this schedule slot"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteAgendaItem(item.id)}
+                              className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                              title="Delete this slot"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleFieldRequired(field.id)}
-                          className={`px-2 py-1 rounded text-[11px] font-medium border ${field.required ? 'bg-rose-950/40 text-rose-300 border-rose-500/30' : 'bg-slate-900 text-slate-400 border-slate-700'}`}
-                        >
-                          {field.required ? 'Req' : 'Opt'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveField(idx, 'up')}
-                          disabled={idx === 0}
-                          className="p-1 rounded text-slate-400 hover:text-slate-200 disabled:opacity-20"
-                        >
-                          <MoveUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveField(idx, 'down')}
-                          disabled={idx === generatedFields.length - 1}
-                          className="p-1 rounded text-slate-400 hover:text-slate-200 disabled:opacity-20"
-                        >
-                          <MoveDown className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeField(field.id)}
-                          className="p-1 rounded text-rose-400 hover:bg-rose-950/40"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-400 pt-1.5 border-t border-slate-800/60">
+                        <div>
+                          <span className="font-medium text-slate-300">Venue:</span> {item.venue}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-300">Assigned:</span> {item.responsiblePerson}
+                        </div>
+                        <div>
+                          <span className="font-medium text-slate-300">Resources:</span> {item.resources || 'Standard AV'}
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: AI Agenda Generation Engine */}
-          {step === 'AGENDA_GEN' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-between flex-wrap gap-3">
-                <div>
-                  <div className="flex items-center gap-2 text-purple-300 font-bold text-sm">
-                    <Sparkles className="w-4 h-4 text-purple-400" />
-                    <span>AI Master Event Agenda Timeline</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Calculated minute schedule accounting for {numPanels} panels, {numRounds} rounds, breaks, and jury deliberation.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleGenerateAIAgenda}
-                  disabled={isGeneratingAgenda}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white shadow-md disabled:opacity-50"
-                >
-                  {isGeneratingAgenda ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  <span>Regenerate Agenda</span>
-                </button>
-              </div>
-
-              {/* Agenda Table */}
-              <div className="flex justify-end">
-                <button type="button" onClick={addAgendaItem} className="flex items-center gap-1 text-xs font-semibold text-purple-300 hover:text-purple-200">
-                  <Plus className="w-3.5 h-3.5" /> Add agenda item
-                </button>
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider">
-                    <tr>
-                      <th className="p-3">Time</th>
-                      <th className="p-3">Activity</th>
-                      <th className="p-3">Venue</th>
-                      <th className="p-3">Responsible</th>
-                      <th className="p-3 w-10"><span className="sr-only">Remove</span></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {generatedAgenda.map((item, idx) => (
-                      <tr key={item.id || idx} className="hover:bg-slate-900/50">
-                        <td className="p-3"><input value={item.time} onChange={(e) => updateAgendaItem(item.id, { time: e.target.value })} className="w-36 bg-transparent text-indigo-300 font-mono outline-none border-b border-transparent focus:border-indigo-500" /></td>
-                        <td className="p-3"><input value={item.activity} onChange={(e) => updateAgendaItem(item.id, { activity: e.target.value })} className="w-full min-w-40 bg-transparent font-semibold text-slate-200 outline-none border-b border-transparent focus:border-indigo-500" /></td>
-                        <td className="p-3"><input value={item.venue} onChange={(e) => updateAgendaItem(item.id, { venue: e.target.value })} className="w-full min-w-32 bg-transparent text-slate-400 outline-none border-b border-transparent focus:border-indigo-500" /></td>
-                        <td className="p-3 text-slate-400">
-                          <input value={item.responsiblePerson} onChange={(e) => updateAgendaItem(item.id, { responsiblePerson: e.target.value })} className="w-full min-w-32 bg-slate-900 border border-slate-800 rounded-md px-2 py-1 text-[11px] text-slate-300 outline-none focus:border-indigo-500" />
-                        </td>
-                        <td className="p-3"><button type="button" onClick={() => removeAgendaItem(item.id)} className="p-1 text-rose-400 hover:bg-rose-950/40 rounded" title="Remove agenda item"><Trash2 className="w-3.5 h-3.5" /></button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
-          {step !== 'DETAILS' ? (
+        <div
+          className="p-4 border-t flex items-center justify-between gap-3 sticky bottom-0 z-20"
+          style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}
+        >
+          {step !== 'COMMON_DETAILS' ? (
             <button
               type="button"
-              onClick={() => setStep(step === 'AGENDA_GEN' ? 'FORM_GEN' : 'DETAILS')}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800 border border-slate-700"
+              onClick={() => {
+                if (step === 'EVENT_SPECIFIC') setStep('COMMON_DETAILS');
+                if (step === 'FORM_GEN') setStep('EVENT_SPECIFIC');
+                if (step === 'AGENDA_GEN') setStep('FORM_GEN');
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}
             >
-              Back
+              <ArrowLeft className="w-4 h-4" /> Back
             </button>
           ) : (
             <div />
           )}
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-slate-200"
-            >
-              Cancel
-            </button>
-
-            {step === 'DETAILS' && (
+            {step === 'COMMON_DETAILS' && (
               <button
                 type="button"
-                onClick={handleNextFromDetails}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white shadow-lg flex items-center gap-1.5"
+                onClick={handleNextFromCommon}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
               >
-                <span>Generate with AI</span>
-                <Sparkles className="w-3.5 h-3.5" />
+                <span>Next: {type} Specifics</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+
+            {step === 'EVENT_SPECIFIC' && (
+              <button
+                type="button"
+                onClick={handleNextFromSpecific}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+              >
+                <span>Next: Review Registration Form</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             )}
 
@@ -673,10 +1973,10 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               <button
                 type="button"
                 onClick={handleNextFromForm}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white shadow-lg flex items-center gap-1.5"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
               >
-                <span>Next: AI Agenda</span>
-                <Sparkles className="w-3.5 h-3.5" />
+                <span>Next: Generate AI Schedule</span>
+                <Sparkles className="w-4 h-4" />
               </button>
             )}
 
@@ -684,10 +1984,10 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               <button
                 type="button"
                 onClick={handleFinalPublish}
-                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white shadow-lg flex items-center gap-1.5 cursor-pointer"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Publish Event & Form</span>
+                <span>Create & Publish Event</span>
               </button>
             )}
           </div>
