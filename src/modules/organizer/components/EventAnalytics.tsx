@@ -94,25 +94,25 @@ export const EventAnalytics: React.FC<EventAnalyticsProps> = ({ event }) => {
   return (
     <div className="space-y-6">
       {/* AI Insights Card */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30">
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 border border-indigo-400/30 text-white shadow-xl shadow-indigo-600/15">
         <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-indigo-400" />
+          <div className="flex items-center gap-2 text-indigo-200 text-xs font-bold uppercase tracking-wider">
+            <Sparkles className="w-4 h-4 text-amber-300" />
             <span>AI Strategic Intelligence & Post-Event Diagnostics</span>
           </div>
           <button
             onClick={fetchAIInsights}
             disabled={isLoadingInsights}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/40 text-indigo-300 text-xs font-semibold border border-indigo-500/30 cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-bold border border-white/20 cursor-pointer disabled:opacity-50 transition-all"
           >
-            {isLoadingInsights ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {isLoadingInsights ? <Loader2 className="w-3.5 h-3.5 animate-spin text-white" /> : <Sparkles className="w-3.5 h-3.5 text-amber-300" />}
             <span>Refresh Insights</span>
           </button>
         </div>
 
         {aiInsights ? (
           <div className="space-y-4 text-xs">
-            <p className="text-slate-200 text-sm font-medium leading-relaxed">
+            <p className="text-indigo-50 text-sm font-medium leading-relaxed">
               {aiInsights.summary}
             </p>
 

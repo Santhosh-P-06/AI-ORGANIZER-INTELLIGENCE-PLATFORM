@@ -168,16 +168,16 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
   return (
     <div className="space-y-6">
       {/* Overview & Action Hero Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 border border-indigo-400/30 text-white shadow-xl shadow-indigo-600/15 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-1">
-            <Shuffle className="w-4 h-4" />
+          <div className="flex items-center gap-2 text-indigo-200 text-xs font-bold uppercase tracking-wider mb-1">
+            <Shuffle className="w-4 h-4 text-amber-300" />
             <span>Random & Conflict-Free Panel Allocation Engine</span>
           </div>
-          <h2 className="text-xl font-display font-bold text-slate-100">
+          <h2 className="text-xl font-display font-extrabold text-white">
             Intelligent Jury Matrix & Schedule Allocator
           </h2>
-          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+          <p className="text-xs text-indigo-100/90 mt-1 max-w-2xl font-medium">
             Automatically maps teams across {panels.length} jury panels, guarantees balanced evaluation loads, eliminates room collisions, and sequences presentations across rounds.
           </p>
         </div>
@@ -186,9 +186,9 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
           <button
             onClick={handleRunAllocation}
             disabled={isAllocating}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 disabled:opacity-50 transition-all cursor-pointer"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-indigo-900 font-extrabold text-xs shadow-lg disabled:opacity-50 transition-all cursor-pointer"
           >
-            {isAllocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {isAllocating ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> : <Sparkles className="w-4 h-4 text-indigo-600" />}
             <span>{allocations.length > 0 ? 'Regenerate Matrix' : 'Generate Allocation'}</span>
           </button>
 

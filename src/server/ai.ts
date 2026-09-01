@@ -143,6 +143,36 @@ Return only JSON array of FormField objects.`,
   return { fields, source: 'intelligent-engine' };
 }
 
+export function parseTimeToMinutes(timeStr: string | undefined, defaultHour = 9, defaultMinute = 0): number {
+  if (!timeStr) return defaultHour * 60 + defaultMinute;
+  const cleaned = timeStr.trim().toLowerCase();
+  const isPM = cleaned.includes('pm');
+  const isAM = cleaned.includes('am');
+
+  const match = cleaned.match(/(\d{1,2}):?(\d{2})?/);
+  if (!match) return defaultHour * 60 + defaultMinute;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2] ? parseInt(match[2], 10) : 0;
+
+  if (isPM && hours < 12) hours += 12;
+  if (isAM && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+}
+
+export function formatMinutesToTime(mins: number): string {
+  const normalized = ((mins % 1440) + 1440) % 1440;
+  let hours = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  const paddedHours = String(hours).padStart(2, '0');
+  const paddedMinutes = String(minutes).padStart(2, '0');
+  return `${paddedHours}:${paddedMinutes} ${ampm}`;
+}
+
 export async function generateAgenda(payload: any) {
   const eventTitle = payload.eventTitle || 'Campus Innovation Event';
   const eventType = payload.eventType || 'Hackathon';
@@ -150,27 +180,36 @@ export async function generateAgenda(payload: any) {
   const startTime = payload.startTime || '09:00 AM';
   const endTime = payload.endTime || '05:00 PM';
   const isMultiDay = Boolean(payload.isMultiDay || payload.startDate !== payload.endDate);
-  const numTeams = Number(payload.maxTeams || payload.numTeams || 24);
+  const numTeams = Number(payload.maxTeams || payload.numTeams || 20);
   const numParticipants = Number(payload.maxStudents || payload.numParticipants || 100);
   const numPanels = Number(payload.numPanels || 3);
   const eventConfig = payload.eventConfig || {};
+
+  const startMins = parseTimeToMinutes(startTime, 9, 0);
+  const endMins = parseTimeToMinutes(endTime, 17, 0);
+  const totalDurationMins = Math.max(120, endMins - startMins);
 
   try {
     const aiResult = await generateJson<{
       agenda: AgendaItem[];
       intelligenceReport: IntelligenceReport;
     }>(
-      `Generate a comprehensive, conflict-free collegiate event schedule and AI intelligence readiness report.
+      `Generate a comprehensive, conflict-free collegiate event schedule.
 Event Title: ${eventTitle}
 Event Type: ${eventType}
 Main Venue: ${venue}
-Start Time: ${startTime}
-End Time: ${endTime}
+EXACT Start Time: ${startTime} (${formatMinutesToTime(startMins)})
+EXACT End Time: ${endTime} (${formatMinutesToTime(endMins)})
 Is Multi-Day: ${isMultiDay}
 Expected Participants: ${numParticipants}
 Expected Teams: ${numTeams}
 Panels/Judges: ${numPanels}
-Event Specific Constraints & Parameters: ${JSON.stringify(eventConfig)}
+Event Specific Constraints: ${JSON.stringify(eventConfig)}
+
+CRITICAL TIME RESTRICTION:
+- The very first activity on Day 1 MUST start at exactly "${startTime}".
+- The final concluding activity on each day MUST conclude at or before "${endTime}".
+- NO activities may run past "${endTime}".
 
 Required Output Structure:
 {
@@ -189,228 +228,239 @@ Required Output Structure:
       "description": "Short operational guide",
       "status": "PENDING"
     }
-  ],
-  "intelligenceReport": {
-    "readinessScore": 94,
-    "timeEfficiency": 92,
-    "resourceUtilization": 90,
-    "participantExperience": 95,
-    "operationalFeasibility": 93,
-    "risks": ["Risk 1", "Risk 2"],
-    "recommendations": ["Recommendation 1", "Recommendation 2"],
-    "feasibilityAnalysis": "Analysis summary",
-    "parallelSessionsCount": 2,
-    "breaksIncluded": true,
-    "conflictsResolved": ["No judge overlap", "Balanced transition buffers"]
-  }
+  ]
 }
 Return only JSON.`,
       'You are a collegiate event operations and scheduling AI architect.'
     );
 
     if (aiResult?.agenda && Array.isArray(aiResult.agenda) && aiResult.agenda.length > 0) {
+      // Validate that items fit strictly within startMins and endMins
+      const validatedAgenda = fitAgendaWithinTimeWindow(aiResult.agenda, startMins, endMins, isMultiDay);
       return {
-        agenda: aiResult.agenda.map((item, idx) => ({
-          ...item,
-          id: item.id || `ag_${idx + 1}`,
-          status: item.status || 'PENDING',
-          day: item.day || 'DAY 1',
-        })),
-        intelligenceReport: aiResult.intelligenceReport || calculateIntelligenceReport(eventType, numTeams, numPanels, 480, isMultiDay),
+        agenda: validatedAgenda,
         source: 'gemini',
       };
     }
   } catch (error: any) {
-    console.warn('Gemini generate-agenda failed, using intelligent-engine scheduler:', error?.message);
+    console.warn('Gemini generate-agenda failed, using mathematically constrained scheduler:', error?.message);
   }
 
-  // Intelligent Engine Scheduling Engine for All 8 Types
-  const agenda = buildEventSchedule(eventType, eventTitle, venue, startTime, endTime, isMultiDay, numTeams, numPanels, eventConfig);
-  const intelligenceReport = calculateIntelligenceReport(eventType, numTeams, numPanels, 480, isMultiDay);
-
-  return { agenda, intelligenceReport, source: 'intelligent-engine' };
+  // Exact mathematically fitted schedule
+  const agenda = buildFittedEventSchedule(eventType, venue, startMins, endMins, isMultiDay, numTeams, numPanels);
+  return { agenda, source: 'intelligent-engine' };
 }
 
-function calculateIntelligenceReport(eventType: string, teams: number, panels: number, durationMinutes: number, isMultiDay: boolean): IntelligenceReport {
-  const teamsPerPanel = Math.ceil(teams / Math.max(1, panels));
-  const estimatedEvaluationTime = teamsPerPanel * 12; // 12 mins avg per team evaluation
-  const isOverloaded = estimatedEvaluationTime > (durationMinutes * 0.6);
+function fitAgendaWithinTimeWindow(
+  items: AgendaItem[],
+  startMins: number,
+  endMins: number,
+  isMultiDay: boolean
+): AgendaItem[] {
+  const day1Items = items.filter((it) => (it.day || 'DAY 1').toUpperCase().includes('DAY 1') || !it.day);
+  const day2Items = items.filter((it) => (it.day || '').toUpperCase().includes('DAY 2'));
 
-  const readinessScore = isOverloaded ? 86 : 96;
-  const timeEfficiency = isOverloaded ? 82 : 94;
-  const resourceUtilization = 91;
-  const participantExperience = isOverloaded ? 85 : 95;
-  const operationalFeasibility = isOverloaded ? 84 : 96;
+  const adjustDayItems = (dayList: AgendaItem[], dayTag: string) => {
+    if (dayList.length === 0) return [];
+    const availableMins = Math.max(60, endMins - startMins);
+    const count = dayList.length;
 
-  const risks: string[] = [];
-  const recommendations: string[] = [];
+    let currentCursor = startMins;
+    return dayList.map((item, idx) => {
+      const isLast = idx === count - 1;
+      // Default item fraction
+      const slotMins = isLast ? (endMins - currentCursor) : Math.max(15, Math.floor(availableMins / count));
+      const slotStart = currentCursor;
+      const slotEnd = isLast ? endMins : Math.min(endMins, currentCursor + slotMins);
+      currentCursor = slotEnd;
 
-  if (isOverloaded) {
-    risks.push(`High jury load: ${teamsPerPanel} teams assigned per panel requires ~${estimatedEvaluationTime} mins of continuous evaluation.`);
-    recommendations.push(`Increase jury panels from ${panels} to ${Math.ceil(teams / 6)} or reduce individual evaluation slots from 12 mins to 8 mins.`);
-  } else {
-    recommendations.push('Jury workload is well-balanced (~' + teamsPerPanel + ' teams/panel), allowing generous 10-minute presentations + 3-minute Q&A.');
-  }
-
-  if (isMultiDay) {
-    recommendations.push('Multi-day staging enabled: Day 1 dedicated to builds/presentations, Day 2 to grand finals and award dispatch.');
-  }
-
-  recommendations.push('Designate 2 lead student volunteers per room equipped with warning countdown cards at 2-min and 30-sec marks.');
-  recommendations.push('Ensure Wi-Fi SSID with static IP pool is broadcasted 1 hour prior to check-in.');
-
-  return {
-    readinessScore,
-    timeEfficiency,
-    resourceUtilization,
-    participantExperience,
-    operationalFeasibility,
-    risks,
-    recommendations,
-    feasibilityAnalysis: `Schedule verified for ${eventType}: Feasible within allocated time with 0 conflicting room assignments and balanced transitions.`,
-    parallelSessionsCount: panels,
-    breaksIncluded: true,
-    conflictsResolved: [
-      'Zero overlapping speaker & jury duties',
-      'Mandatory 45-minute lunch buffer guaranteed',
-      '15-minute stage changeover buffer preserved',
-    ],
+      return {
+        ...item,
+        id: item.id || `ag_${dayTag.toLowerCase()}_${idx + 1}`,
+        day: dayTag,
+        time: `${formatMinutesToTime(slotStart)} - ${formatMinutesToTime(slotEnd)}`,
+        duration: `${slotEnd - slotStart} mins`,
+        status: item.status || 'PENDING',
+      };
+    });
   };
+
+  const adjustedDay1 = adjustDayItems(day1Items, 'DAY 1');
+  const adjustedDay2 = isMultiDay && day2Items.length > 0 ? adjustDayItems(day2Items, 'DAY 2') : [];
+
+  return [...adjustedDay1, ...adjustedDay2];
 }
 
-function buildEventSchedule(
+interface ActivityTemplate {
+  activity: string;
+  weight: number; // proportional duration weight
+  sessionType: 'MAIN' | 'PARALLEL' | 'BREAK' | 'SETUP' | 'BUFFER' | 'EVALUATION' | 'KEYNOTE';
+  responsiblePerson: string;
+  resources: string;
+  description: string;
+  venueSuffix?: string;
+}
+
+function buildFittedEventSchedule(
   eventType: string,
-  eventTitle: string,
   venue: string,
-  startTime: string,
-  endTime: string,
+  startMins: number,
+  endMins: number,
   isMultiDay: boolean,
   numTeams: number,
-  numPanels: number,
-  config: any
+  numPanels: number
 ): AgendaItem[] {
-  const day1 = 'DAY 1';
-  const day2 = 'DAY 2';
-  const items: AgendaItem[] = [];
+  const templatesByEventType: Record<string, { day1: ActivityTemplate[]; day2?: ActivityTemplate[] }> = {
+    Hackathon: {
+      day1: [
+        { activity: 'Hackathon Check-in & Team Kit Distribution', weight: 0.10, sessionType: 'SETUP', responsiblePerson: 'Registration Desk', resources: 'QR Scanner & ID Lanyards', description: 'Badge verification & workstation allotment.', venueSuffix: 'Main Foyer' },
+        { activity: 'Inauguration & Problem Statements Release', weight: 0.10, sessionType: 'KEYNOTE', responsiblePerson: 'Convener & Industry Mentors', resources: 'Stage AV & Projector', description: 'Theme reveal and evaluation rubrics briefing.', venueSuffix: 'Auditorium' },
+        { activity: 'Sprint 1: Architecture & Core Implementation', weight: 0.30, sessionType: 'MAIN', responsiblePerson: 'Lab Coordinators', resources: 'High-speed LAN & Power Outlets', description: 'Teams begin repository setup and base prototypes.', venueSuffix: 'Innovation Labs' },
+        { activity: 'Power Lunch & Networking Break', weight: 0.12, sessionType: 'BREAK', responsiblePerson: 'Hospitality Volunteers', resources: 'Buffet Setup', description: 'Nutritious lunch and informal mentor interaction.', venueSuffix: 'Dining Hall' },
+        { activity: 'Sprint 2: Parallel Mentor Review & Code Clinics', weight: 0.20, sessionType: 'PARALLEL', responsiblePerson: 'Industry Mentors (8 Staff)', resources: 'Mentorship Pods', description: 'Technical guidance on bugs and architectural blockers.', venueSuffix: 'Breakout Pods' },
+        { activity: 'Round 1: Parallel Jury Evaluation & Demo', weight: 0.10, sessionType: 'EVALUATION', responsiblePerson: `${numPanels} Jury Panels`, resources: 'HDMI Screens & Scoring App', description: 'Squads present prototype progress to assigned panels.', venueSuffix: `${numPanels} Evaluation Rooms` },
+        { activity: 'Award Ceremony & Certificate Distribution', weight: 0.08, sessionType: 'KEYNOTE', responsiblePerson: 'Principal & Organisers', resources: 'Trophies & Digital Certs', description: 'Winners announcement and digital certificate dispatch.', venueSuffix: 'Auditorium' },
+      ],
+      day2: [
+        { activity: 'Day 2 Breakfast & Final Code Freeze', weight: 0.15, sessionType: 'SETUP', responsiblePerson: 'Technical Reviewers', resources: 'GitHub Verifier', description: 'Final git push freeze and breakfast.', venueSuffix: 'Labs' },
+        { activity: 'Round 2: Parallel Jury Evaluation & Code Audit', weight: 0.35, sessionType: 'EVALUATION', responsiblePerson: 'Jury Panel', resources: 'Scoring Tablets', description: 'In-depth code audit and performance testing.', venueSuffix: 'Jury Rooms' },
+        { activity: 'Lunch & Jury Score Normalization', weight: 0.15, sessionType: 'BREAK', responsiblePerson: 'Hospitality & Jury Chair', resources: 'Dining Buffet', description: 'Lunch and top 5 finalist selection.', venueSuffix: 'Dining Area' },
+        { activity: 'Grand Finale: Top 5 Live Stage Pitches', weight: 0.20, sessionType: 'KEYNOTE', responsiblePerson: 'Chief Jury & Anchors', resources: 'Main Stage AV', description: 'Final stage pitches in front of full audience.', venueSuffix: 'Main Auditorium' },
+        { activity: 'Valedictory & Verified Certificate Handout', weight: 0.15, sessionType: 'KEYNOTE', responsiblePerson: 'Principal & Dignitaries', resources: 'Trophies & Certificates', description: 'Grand champion crowning.', venueSuffix: 'Main Stage' },
+      ],
+    },
 
-  switch (eventType) {
-    case 'Hackathon':
-      items.push(
-        { id: 'h_1', day: day1, time: '08:30 AM - 09:30 AM', duration: '60 mins', activity: 'Hackathon Check-in & Team Kit Distribution', venue: `${venue} - Main Foyer`, responsiblePerson: 'Registration Volunteers', participants: 'All Registered Hackers', resources: 'QR Scanners, Badge Lanyards, Welcome Kits', sessionType: 'SETUP', description: 'Student badge verification and lab seating allocation.', status: 'PENDING' },
-        { id: 'h_2', day: day1, time: '09:30 AM - 10:15 AM', duration: '45 mins', activity: 'Grand Opening & Problem Statements Release', venue: `${venue} - Main Auditorium`, responsiblePerson: 'Event Convener & Industry Sponsors', participants: 'All Teams & Mentors', resources: 'Projector, Keynote Slides, Audio System', sessionType: 'KEYNOTE', description: 'Theme reveal, API sponsorship briefings, and evaluation criteria.', status: 'PENDING' },
-        { id: 'h_3', day: day1, time: '10:15 AM - 01:00 PM', duration: '165 mins', activity: 'Sprint 1: Architecture, Ideation & Coding', venue: 'Innovation Labs 1-4', responsiblePerson: 'Lab Coordinators', participants: 'All Teams', resources: 'High-speed Wi-Fi, Cloud Credits, Power Strips', sessionType: 'MAIN', description: 'Teams begin core repository setup and algorithm implementation.', status: 'PENDING' },
-        { id: 'h_4', day: day1, time: '01:00 PM - 02:00 PM', duration: '60 mins', activity: 'Power Lunch & Networking Break', venue: 'Campus Dining Hall', responsiblePerson: 'Hospitality Team', participants: 'All Participants, Mentors & Staff', resources: 'Buffet Setup & Refreshments', sessionType: 'BREAK', description: 'Nutritious lunch and informal mentor interactions.', status: 'PENDING' },
-        { id: 'h_5', day: day1, time: '02:00 PM - 04:00 PM', duration: '120 mins', activity: 'Sprint 2: Mentor Review & Live Code Clinics', venue: 'Innovation Labs & Mentorship Pods', responsiblePerson: 'Industry Mentors & Tech Leads', participants: 'All Teams (Parallel Review)', resources: 'Whiteboards & Debugging Screens', sessionType: 'PARALLEL', description: 'Technical mentors visit team pods to resolve architectural blockers.', status: 'PENDING' },
-        { id: 'h_6', day: day1, time: '04:00 PM - 04:30 PM', duration: '30 mins', activity: 'High-Tea & Energy Recharge', venue: 'Innovation Concourse', responsiblePerson: 'Student Volunteers', participants: 'All Hackers', resources: 'Tea, Coffee & Snacks', sessionType: 'BREAK', description: 'Quick refreshment break before evening coding push.', status: 'PENDING' }
-      );
+    'Paper Presentation': {
+      day1: [
+        { activity: 'Author Registration & Slide Upload Verification', weight: 0.10, sessionType: 'SETUP', responsiblePerson: 'Track Coordinators', resources: 'Presentation Laptops', description: 'Slide check and author badge distribution.', venueSuffix: 'Seminar Foyer' },
+        { activity: 'Keynote Address on Emerging Research Paradigms', weight: 0.12, sessionType: 'KEYNOTE', responsiblePerson: 'Session Chair & Guest Scientist', resources: 'Keynote AV', description: 'Opening address.', venueSuffix: 'Main Seminar Hall' },
+        { activity: `Technical Session 1: Parallel Oral Presentations (${numPanels} Tracks)`, weight: 0.35, sessionType: 'PARALLEL', responsiblePerson: 'Session Chairs & Jury', resources: 'Timers & Digital Rubrics', description: '8-min paper presentation + 4-min Q&A defense per author.', venueSuffix: `${numPanels} Track Rooms` },
+        { activity: 'Lunch Break & Academic Networking', weight: 0.13, sessionType: 'BREAK', responsiblePerson: 'Hospitality Staff', resources: 'Dining Setup', description: 'Networking lunch.', venueSuffix: 'Executive Dining Hall' },
+        { activity: 'Technical Session 2: Advanced Topics & Defense', weight: 0.20, sessionType: 'EVALUATION', responsiblePerson: 'Review Panels', resources: 'Projectors & Screens', description: 'Afternoon presentations and poster evaluations.', venueSuffix: 'Track Rooms' },
+        { activity: 'Best Paper in Track Awards & Valedictory', weight: 0.10, sessionType: 'KEYNOTE', responsiblePerson: 'Dean of Research & HOD', resources: 'Certificates & Plaques', description: 'Best paper awards distribution.', venueSuffix: 'Main Seminar Hall' },
+      ],
+    },
 
-      if (isMultiDay) {
-        items.push(
-          { id: 'h_7', day: day1, time: '04:30 PM - 08:00 PM', duration: '210 mins', activity: 'Sprint 3: Overnight Prototype Build & API Integration', venue: 'Hackathon Arenas', responsiblePerson: 'Night Duty Volunteers & Security', participants: 'All Teams', resources: 'RedBull/Snack Bar, First Aid, Sleeping Pods', sessionType: 'MAIN', description: 'Continuous prototyping and live database connections.', status: 'PENDING' },
-          { id: 'h_8', day: day2, time: '08:00 AM - 09:00 AM', duration: '60 mins', activity: 'Breakfast & Final Commit Freeze', venue: 'Innovation Labs & Dining Hall', responsiblePerson: 'Technical Reviewers', participants: 'All Teams', resources: 'GitHub Webhook Verifier', sessionType: 'SETUP', description: 'Final git push deadline and breakfast.', status: 'PENDING' },
-          { id: 'h_9', day: day2, time: '09:00 AM - 12:30 PM', duration: '210 mins', activity: 'Round 1: Parallel Jury Pitching & Code Audits', venue: `${numPanels} Jury Breakout Rooms`, responsiblePerson: 'Jury Panel Members', participants: `${numTeams} Teams across ${numPanels} Panels`, resources: 'HDMI Displays, Scoring Tablets', sessionType: 'EVALUATION', description: '10-minute presentation + 5-minute live demo and QA per squad.', status: 'PENDING' },
-          { id: 'h_10', day: day2, time: '12:30 PM - 01:30 PM', duration: '60 mins', activity: 'Jury Deliberation & Top 5 Finalist Selection', venue: 'Jury Boardroom', responsiblePerson: 'Head Judge & Panel Chairs', participants: 'Judges & Faculty Leads', resources: 'Automated Score Aggregator', sessionType: 'BUFFER', description: 'Score normalization and selection of top 5 finalists for grand stage.', status: 'PENDING' },
-          { id: 'h_11', day: day2, time: '02:00 PM - 03:30 PM', duration: '90 mins', activity: 'Grand Finale: Top 5 Stage Pitching & Live Demo', venue: `${venue} - Main Auditorium`, responsiblePerson: 'Anchor & Chief Jury', participants: 'Top 5 Finalists & Full Audience', resources: 'Main Stage AV, Live Streaming', sessionType: 'KEYNOTE', description: 'Grand finale pitches in front of full collegiate audience.', status: 'PENDING' },
-          { id: 'h_12', day: day2, time: '03:45 PM - 04:45 PM', duration: '60 mins', activity: 'Award Ceremony & Verified Certificate Dispatch', venue: `${venue} - Main Stage`, responsiblePerson: 'Principal & Dignitaries', participants: 'All Participants', resources: 'Trophies, Cash Prizes, Verified Digital Certificates', sessionType: 'KEYNOTE', description: 'Winner announcements and instant certificate QR downloads.', status: 'PENDING' }
-        );
+    'Coding Contest': {
+      day1: [
+        { activity: 'Contestant Check-in & Lab Workstation Allotment', weight: 0.12, sessionType: 'SETUP', responsiblePerson: 'Lab Invigilators', resources: 'Terminals & Isolated Subnet', description: 'Login and IDE configuration.', venueSuffix: 'Computing Labs' },
+        { activity: 'Platform Rules Briefing & Warmup Trial Run', weight: 0.10, sessionType: 'MAIN', responsiblePerson: 'Contest Admin', resources: 'Scoreboard Screen', description: 'Trial problem submission check.', venueSuffix: 'Computing Labs' },
+        { activity: 'Round 1: Algorithmic Sprint & Data Structures', weight: 0.35, sessionType: 'EVALUATION', responsiblePerson: 'Invigilators & System Admins', resources: 'Automated Test Runner', description: '4 algorithmic problems under exam mode.', venueSuffix: 'Computing Labs' },
+        { activity: 'Lunch Break & Mid-Contest Standings Review', weight: 0.13, sessionType: 'BREAK', responsiblePerson: 'Hospitality Team', resources: 'Cafeteria Buffet', description: 'Lunch and scoreboard review.', venueSuffix: 'Cafeteria' },
+        { activity: 'Round 2: Extreme Optimization & Dynamic Programming', weight: 0.20, sessionType: 'EVALUATION', responsiblePerson: 'Problem Setters & Jury', resources: 'Plagiarism Checker', description: 'Advanced problem challenges with frozen leaderboard.', venueSuffix: 'Computing Labs' },
+        { activity: 'Editorial Walkthrough & Prize Distribution', weight: 0.10, sessionType: 'KEYNOTE', responsiblePerson: 'Chief Problem Setter & HOD', resources: 'Editorial Slides & Awards', description: 'Solution discussions and winner declarations.', venueSuffix: 'Auditorium' },
+      ],
+    },
+
+    'Project Expo': {
+      day1: [
+        { activity: 'Stall Setup, Power Hookup & Prototype Assembly', weight: 0.15, sessionType: 'SETUP', responsiblePerson: 'Stall Management Team', resources: 'Tables & 16A Outlets', description: 'Mounting banners and hardware power checks.', venueSuffix: 'Exhibition Pavilion' },
+        { activity: 'Inauguration & VIP Ribbon Cutting', weight: 0.10, sessionType: 'KEYNOTE', responsiblePerson: 'Principal & Industry Guests', resources: 'Stage Mic', description: 'Chief guest opening tour.', venueSuffix: 'Central Pavilion' },
+        { activity: 'Round 1: Jury Stall Audits & Prototype Evaluation', weight: 0.35, sessionType: 'EVALUATION', responsiblePerson: 'Evaluation Panels (3 Teams)', resources: 'Digital Scoring App', description: '10-minute technical evaluation per stall.', venueSuffix: 'Stalls 1 to ' + numTeams },
+        { activity: 'Lunch & Open Public Exhibition Viewing', weight: 0.15, sessionType: 'BREAK', responsiblePerson: 'Hospitality Leads', resources: 'Lunch Buffet', description: 'Lunch and general student viewing.', venueSuffix: 'Pavilion' },
+        { activity: 'Round 2: Commercial Scalability & Impact Defense', weight: 0.15, sessionType: 'PARALLEL', responsiblePerson: 'Angel Investors & Senior Jury', resources: 'Investor Rubrics', description: 'Evaluating market readiness and IP novelty.', venueSuffix: 'Pitch Pods' },
+        { activity: 'Innovation Awards & Seed Grant Announcements', weight: 0.10, sessionType: 'KEYNOTE', responsiblePerson: 'Incubation Cell Lead & Principal', resources: 'Trophies & Grants', description: 'Prize ceremony.', venueSuffix: 'Central Stage' },
+      ],
+    },
+
+    'Robotics Challenge': {
+      day1: [
+        { activity: 'Pit Registration & Robot Technical Scrutineering', weight: 0.15, sessionType: 'SETUP', responsiblePerson: 'Technical Safety Officers', resources: 'Scales & Dimension Gauges', description: 'Safety, weight, and dimension check.', venueSuffix: 'Pit Zone' },
+        { activity: 'Arena Calibration & Practice Time Trials', weight: 0.12, sessionType: 'MAIN', responsiblePerson: 'Arena Marshals', resources: 'Stopwatches', description: 'Track surface friction calibration.', venueSuffix: 'Primary Track' },
+        { activity: 'Round 1: Qualifying Heats & Time Trials', weight: 0.33, sessionType: 'EVALUATION', responsiblePerson: 'Track Judges & Referees', resources: 'High-speed Cameras', description: 'Timed autonomous track runs.', venueSuffix: 'Arena Track A/B' },
+        { activity: 'Pit Repair Lunch & Battery Charging Break', weight: 0.15, sessionType: 'BREAK', responsiblePerson: 'Support Volunteers', resources: 'Charging Stations', description: 'Battery recharging and crew lunch.', venueSuffix: 'Pit Area' },
+        { activity: 'Grand Finals: Multi-Bot Arena Showdown', weight: 0.15, sessionType: 'MAIN', responsiblePerson: 'Grand Referees & Commentator', resources: 'Protective Shields', description: 'Final knockout rounds.', venueSuffix: 'Central Arena' },
+        { activity: 'Robo-Master Championship Trophy Gala', weight: 0.10, sessionType: 'KEYNOTE', responsiblePerson: 'Chief Guest & Dean', resources: 'Trophies & Hardware Vouchers', description: 'Award distribution.', venueSuffix: 'Arena Podium' },
+      ],
+    },
+
+    'Cultural Fest': {
+      day1: [
+        { activity: 'Green Room Check-in & Audio Sound Check', weight: 0.15, sessionType: 'SETUP', responsiblePerson: 'Stage Managers & Sound Engineer', resources: 'Mics & Line Arrays', description: 'Audio track loading and acoustic tuning.', venueSuffix: 'Green Rooms & Main Stage' },
+        { activity: 'Fest Inauguration & Traditional Lamp Lighting', weight: 0.10, sessionType: 'KEYNOTE', responsiblePerson: 'Cultural Secretary & Dignitaries', resources: 'Traditional Lamp', description: 'Fest opening ceremony.', venueSuffix: 'Main Stage' },
+        { activity: 'Segment 1: Solo Vocals & Classical Performances', weight: 0.30, sessionType: 'MAIN', responsiblePerson: 'Anchors & Music Jury', resources: 'Spotlights & Monitors', description: 'Vocal competitions with strict changeover buffers.', venueSuffix: 'Auditorium Stage' },
+        { activity: 'Lunch & Flea Carnival Stalls', weight: 0.15, sessionType: 'BREAK', responsiblePerson: 'Student Council', resources: 'Food Stalls', description: 'Lunch and street plays.', venueSuffix: 'Fest Grounds' },
+        { activity: 'Segment 2: Synchronized Group Dance & Drama', weight: 0.20, sessionType: 'MAIN', responsiblePerson: 'Dance Jury & Operations Lead', resources: 'Moving Head Lights & Smoke', description: 'Group dance competitions.', venueSuffix: 'Main Stage' },
+        { activity: 'Star Night Gala & Trophy Handover', weight: 0.10, sessionType: 'KEYNOTE', responsiblePerson: 'Principal & Cultural President', resources: 'Rolling Trophies & Certificates', description: 'Celebrity guest address and department trophy.', venueSuffix: 'Open Air Stage' },
+      ],
+    },
+
+    'Technical Quiz': {
+      day1: [
+        { activity: 'Quiz Team Check-in & Device Setup', weight: 0.12, sessionType: 'SETUP', responsiblePerson: 'Quiz Coordinators', resources: 'OMR Sheets & Clickers', description: 'Verification and seating.', venueSuffix: 'Lecture Hall 1' },
+        { activity: 'Round 1: Written Eliminator Prelims (30 Questions)', weight: 0.28, sessionType: 'EVALUATION', responsiblePerson: 'Quiz Master & Invigilators', resources: 'Question Booklets', description: '30 tech trivia questions.', venueSuffix: 'Lecture Hall 1' },
+        { activity: 'Score Tabulation & Audience Brain Teasers', weight: 0.15, sessionType: 'BUFFER', responsiblePerson: 'Assistant Quiz Master', resources: 'Spot Prizes & Projector', description: 'Audience spot prizes while finalists are tabulated.', venueSuffix: 'Main Stage' },
+        { activity: 'Lunch Break', weight: 0.15, sessionType: 'BREAK', responsiblePerson: 'Hospitality Staff', resources: 'Cafeteria Dining', description: 'Lunch for participants and organizers.', venueSuffix: 'Cafeteria' },
+        { activity: 'Round 2: Stage Finals (Audio-Visual & Rapid Buzzer)', weight: 0.20, sessionType: 'MAIN', responsiblePerson: 'Grand Quiz Master', resources: 'Hardware Buzzers & Dual Screens', description: 'Top 6 teams clash across 5 stage rounds.', venueSuffix: 'Main Stage' },
+        { activity: 'Quiz Champion Felicitations & Prize Distribution', weight: 0.10, sessionType: 'KEYNOTE', responsiblePerson: 'HOD & Quiz Master', resources: 'Trophies & Books', description: 'Champion crowning.', venueSuffix: 'Main Stage' },
+      ],
+    },
+
+    'Workshop & Bootcamp': {
+      day1: [
+        { activity: 'Learner Check-in & Lab Environment Setup', weight: 0.12, sessionType: 'SETUP', responsiblePerson: 'Teaching Assistants (4 Staff)', resources: 'Cloud Containers & Repo Clone', description: 'Attendance check-in and repo setup.', venueSuffix: 'Cloud Labs' },
+        { activity: 'Session 1: Architectural Foundations & Concepts', weight: 0.28, sessionType: 'KEYNOTE', responsiblePerson: 'Lead Industry Instructor', resources: 'Live Coding Screen', description: 'Interactive architectural walkthrough.', venueSuffix: 'Seminar Hall' },
+        { activity: 'Morning Tea & Quick Networking Pause', weight: 0.08, sessionType: 'BREAK', responsiblePerson: 'Hospitality Volunteers', resources: 'Tea & Snacks', description: 'Coffee recharge.', venueSuffix: 'Foyer' },
+        { activity: 'Session 2: Hands-on Guided Lab Exercise', weight: 0.22, sessionType: 'MAIN', responsiblePerson: 'Instructor & TAs', resources: 'GPU Workstations', description: 'Guided implementation step-by-step.', venueSuffix: 'Cloud Labs' },
+        { activity: 'Networking Lunch', weight: 0.12, sessionType: 'BREAK', responsiblePerson: 'Hospitality Team', resources: 'Lunch Buffet', description: 'Lunch break and informal Q&A.', venueSuffix: 'Dining Center' },
+        { activity: 'Session 3: Capstone Build & Q&A Assessment', weight: 0.10, sessionType: 'MAIN', responsiblePerson: 'Lead Speaker', resources: 'Benchmark Suite', description: 'Deploying end-to-end solutions.', venueSuffix: 'Cloud Labs' },
+        { activity: 'Valedictory & Verified Digital Certificate Handout', weight: 0.08, sessionType: 'KEYNOTE', responsiblePerson: 'HOD & Speaker', resources: 'Certificates with QR', description: 'Skill badges and certificate handout.', venueSuffix: 'Seminar Hall' },
+      ],
+    },
+  };
+
+  const selectedTemplate = templatesByEventType[eventType] || templatesByEventType['Hackathon'];
+  const day1Templates = selectedTemplate.day1;
+  const day2Templates = isMultiDay && selectedTemplate.day2 ? selectedTemplate.day2 : null;
+
+  const totalAvailableMins = Math.max(90, endMins - startMins);
+
+  const generateDayItems = (templates: ActivityTemplate[], dayTag: string): AgendaItem[] => {
+    let currentCursor = startMins;
+    const totalWeight = templates.reduce((acc, t) => acc + t.weight, 0);
+
+    return templates.map((tmpl, idx) => {
+      const isLast = idx === templates.length - 1;
+      let slotMins: number;
+
+      if (isLast) {
+        slotMins = endMins - currentCursor;
       } else {
-        items.push(
-          { id: 'h_7s', day: day1, time: '04:30 PM - 06:30 PM', duration: '120 mins', activity: 'Round 1: Parallel Jury Evaluation & Demo', venue: `${numPanels} Jury Rooms`, responsiblePerson: 'Jury Panel Members', participants: `${numTeams} Teams`, resources: 'Display Monitors & Scoring Sheets', sessionType: 'EVALUATION', description: 'Live code review and prototype demo across parallel panels.', status: 'PENDING' },
-          { id: 'h_8s', day: day1, time: '06:30 PM - 07:15 PM', duration: '45 mins', activity: 'Award Ceremony & Certificate Distribution', venue: `${venue} - Main Auditorium`, responsiblePerson: 'Organizing Committee', participants: 'All Hackers', resources: 'Prizes & Digital Certificates', sessionType: 'KEYNOTE', description: 'Announcement of winners and closing ceremony.', status: 'PENDING' }
-        );
+        const rawMins = Math.round((tmpl.weight / totalWeight) * totalAvailableMins);
+        // Round to nearest 5 minutes for clean human schedule
+        slotMins = Math.max(15, Math.round(rawMins / 5) * 5);
+        if (currentCursor + slotMins > endMins - 15) {
+          slotMins = endMins - currentCursor;
+        }
       }
-      break;
 
-    case 'Paper Presentation':
-      items.push(
-        { id: 'pp_1', day: day1, time: '09:00 AM - 09:30 AM', duration: '30 mins', activity: 'Author Registration & Slide Upload Verification', venue: `${venue} - Foyer`, responsiblePerson: 'Track Coordinators', participants: 'Registered Authors', resources: 'Presentation Laptops & Clickers', sessionType: 'SETUP', description: 'Verification of author IDs and preloading slides onto track laptops.', status: 'PENDING' },
-        { id: 'pp_2', day: day1, time: '09:30 AM - 10:15 AM', duration: '45 mins', activity: 'Keynote Address on Research Frontiers', venue: `${venue} - Main Hall`, responsiblePerson: 'Session Chair & Guest Scientist', participants: 'All Authors & Faculty', resources: 'Keynote AV, Stage Mic', sessionType: 'KEYNOTE', description: 'Opening address on emerging research paradigms.', status: 'PENDING' },
-        { id: 'pp_3', day: day1, time: '10:30 AM - 01:00 PM', duration: '150 mins', activity: 'Technical Session 1: Parallel Oral Presentations', venue: `Seminar Halls A, B & C (${numPanels} Tracks)`, responsiblePerson: 'Session Chairs & Jury Panels', participants: 'Track Authors (8 mins + 4 mins QA)', resources: 'Laser Pointers, Digital Timer, Feedback Rubrics', sessionType: 'PARALLEL', description: 'Authors present peer-reviewed papers with rigorous jury Q&A.', status: 'PENDING' },
-        { id: 'pp_4', day: day1, time: '01:00 PM - 02:00 PM', duration: '60 mins', activity: 'Luncheon & Academic Networking', venue: 'Executive Dining Hall', responsiblePerson: 'Hospitality Staff', participants: 'Authors, Reviewers & Session Chairs', resources: 'Catering Buffet', sessionType: 'BREAK', description: 'Networking lunch and cross-disciplinary research discussions.', status: 'PENDING' },
-        { id: 'pp_5', day: day1, time: '02:00 PM - 04:00 PM', duration: '120 mins', activity: 'Technical Session 2: Advanced Topics & Poster Defense', venue: 'Seminar Halls & Poster Concourse', responsiblePerson: 'Review Panel Chairs', participants: 'Track Authors & Poster Presenters', resources: 'Poster Display Boards & AV', sessionType: 'EVALUATION', description: 'Afternoon oral papers and interactive poster evaluations.', status: 'PENDING' },
-        { id: 'pp_6', day: day1, time: '04:15 PM - 05:00 PM', duration: '45 mins', activity: 'Best Paper Awards & Certificate Valedictory', venue: `${venue} - Main Hall`, responsiblePerson: 'Dean of Research & Chief Guest', participants: 'All Presenters', resources: 'Best Paper Plaques & Verified Certificates', sessionType: 'KEYNOTE', description: 'Best Paper in Track declarations and publication citations.', status: 'PENDING' }
-      );
-      break;
+      const slotStart = currentCursor;
+      const slotEnd = isLast ? endMins : Math.min(endMins, currentCursor + slotMins);
+      currentCursor = slotEnd;
 
-    case 'Coding Contest':
-      items.push(
-        { id: 'cc_1', day: day1, time: '09:00 AM - 09:45 AM', duration: '45 mins', activity: 'Contestant Check-in & Lab Workstation Allotment', venue: 'Advanced Computing Center Labs 1-3', responsiblePerson: 'Technical Lab Invigilators', participants: 'All Coders', resources: 'Individual Terminals, Isolated Network Subnet', sessionType: 'SETUP', description: 'System login, IDE configuration, and platform credentials check.', status: 'PENDING' },
-        { id: 'cc_2', day: day1, time: '09:45 AM - 10:15 AM', duration: '30 mins', activity: 'Contest Environment Briefing & Warmup Trial', venue: 'Computer Labs', responsiblePerson: 'Contest Administrator', participants: 'All Contestants', resources: 'Contest Platform & Scoreboard Screen', sessionType: 'MAIN', description: 'Practice problem test run to verify submission pipelines.', status: 'PENDING' },
-        { id: 'cc_3', day: day1, time: '10:30 AM - 12:30 PM', duration: '120 mins', activity: 'Round 1: Algorithmic Sprint & Data Structures', venue: 'Computer Labs (Secure Exam Mode)', responsiblePerson: 'Invigilators & System Admins', participants: 'All Contestants', resources: 'Automated Test Runner & Memory Profiler', sessionType: 'EVALUATION', description: '4 algorithmic problems ranging from Medium to Hard.', status: 'PENDING' },
-        { id: 'cc_4', day: day1, time: '12:30 PM - 01:30 PM', duration: '60 mins', activity: 'Lunch Break & Live Leaderboard Review', venue: 'Student Cafeteria', responsiblePerson: 'Hospitality Volunteers', participants: 'All Participants', resources: 'Refreshments', sessionType: 'BREAK', description: 'Recharge break and mid-contest standings inspection.', status: 'PENDING' },
-        { id: 'cc_5', day: day1, time: '01:30 PM - 03:30 PM', duration: '120 mins', activity: 'Round 2: Extreme Optimization & Dynamic Programming', venue: 'Computer Labs', responsiblePerson: 'Jury & Lead Problem Setters', participants: 'Top Qualifying Coders', resources: 'Real-time Plagiarism Filter (MOSS)', sessionType: 'EVALUATION', description: 'Advanced graph, DP and system optimization problems with frozen leaderboard.', status: 'PENDING' },
-        { id: 'cc_6', day: day1, time: '03:45 PM - 04:30 PM', duration: '45 mins', activity: 'Leaderboard Unfreeze, Solution Editorial & Awards', venue: 'Seminar Auditorium', responsiblePerson: 'Chief Problem Setter & HOD', participants: 'All Coders', resources: 'Editorial Slides, Trophies & Certificates', sessionType: 'KEYNOTE', description: 'Problem walkthrough by creators and crowning of top coders.', status: 'PENDING' }
-      );
-      break;
+      const durationMinutes = Math.max(5, slotEnd - slotStart);
 
-    case 'Project Expo':
-      items.push(
-        { id: 'pe_1', day: day1, time: '08:30 AM - 09:30 AM', duration: '60 mins', activity: 'Stall Setup, Power Hookup & Prototype Assembly', venue: `${venue} - Exhibition Pavilion`, responsiblePerson: 'Stall Management Volunteers', participants: `${numTeams} Exhibiting Teams`, resources: 'Stalls, Power Strips, Display Boards', sessionType: 'SETUP', description: 'Teams mount banners and calibrate working physical/software models.', status: 'PENDING' },
-        { id: 'pe_2', day: day1, time: '09:30 AM - 10:15 AM', duration: '45 mins', activity: 'Exhibition Ribbon Cutting & VIP Walkthrough', venue: 'Exhibition Entrance & Main Pavilion', responsiblePerson: 'Principal, Industry Guests & Media', participants: 'Dignitaries & All Stalls', resources: 'Inauguration Banner, Mic', sessionType: 'KEYNOTE', description: 'Official inauguration and chief guest initial tour.', status: 'PENDING' },
-        { id: 'pe_3', day: day1, time: '10:30 AM - 01:00 PM', duration: '150 mins', activity: 'Round 1: Jury Stall Audits & Technical Inspection', venue: 'Exhibition Pavilion (Stalls 1 to ' + numTeams + ')', responsiblePerson: 'Industry Evaluation Panels (3 Teams)', participants: 'All Project Teams', resources: 'Evaluation Clipboards & Digital Scoring App', sessionType: 'EVALUATION', description: 'Rigorous 10-min inspection per stall focusing on novelty and working viability.', status: 'PENDING' },
-        { id: 'pe_4', day: day1, time: '01:00 PM - 02:00 PM', duration: '60 mins', activity: 'Exhibitor Lunch & Public Viewing Free Hour', venue: 'Pavilion & Food Court', responsiblePerson: 'Hospitality Leads', participants: 'Exhibitors & General College Students', resources: 'Lunch Buffet & Visitor Passes', sessionType: 'BREAK', description: 'Open public walkthrough while team members alternate for lunch.', status: 'PENDING' },
-        { id: 'pe_5', day: day1, time: '02:00 PM - 03:45 PM', duration: '105 mins', activity: 'Round 2: Commercial Scalability & Impact Defense', venue: 'Exhibition Arena & Pitch Pods', responsiblePerson: 'Angel Investors & Senior Jury', participants: 'Top Shortlisted Project Stalls', resources: 'Investor Scoring Rubric', sessionType: 'PARALLEL', description: 'Deep-dive into patentability, market viability, and engineering robustness.', status: 'PENDING' },
-        { id: 'pe_6', day: day1, time: '04:00 PM - 04:45 PM', duration: '45 mins', activity: 'Innovation Awards & Seed Grant Announcements', venue: 'Central Stage', responsiblePerson: 'Incubation Cell Lead & Principal', participants: 'All Exhibitors', resources: 'Innovation Shields, Grants & Certificates', sessionType: 'KEYNOTE', description: 'Best Project across categories and incubation incubation offers.', status: 'PENDING' }
-      );
-      break;
+      return {
+        id: `ag_${dayTag.toLowerCase()}_${idx + 1}`,
+        day: dayTag,
+        time: `${formatMinutesToTime(slotStart)} - ${formatMinutesToTime(slotEnd)}`,
+        duration: `${durationMinutes} mins`,
+        activity: tmpl.activity,
+        venue: tmpl.venueSuffix ? `${venue} (${tmpl.venueSuffix})` : venue,
+        responsiblePerson: tmpl.responsiblePerson,
+        participants: 'All Registered Participants',
+        resources: tmpl.resources,
+        sessionType: tmpl.sessionType,
+        description: tmpl.description,
+        status: 'PENDING',
+      };
+    });
+  };
 
-    case 'Robotics Challenge':
-      items.push(
-        { id: 'rc_1', day: day1, time: '08:30 AM - 09:30 AM', duration: '60 mins', activity: 'Pit Registration & Robot Technical Scrutineering', venue: 'Robotics Arena - Pit Zone', responsiblePerson: 'Technical Safety Officers', participants: 'All Robot Crews', resources: 'Weighing Scales, Dimension Gauges, Multimeters', sessionType: 'SETUP', description: 'Weight, voltage, fail-safe switch and dimension compliance verification.', status: 'PENDING' },
-        { id: 'rc_2', day: day1, time: '09:30 AM - 10:15 AM', duration: '45 mins', activity: 'Arena Calibration & Practice Time Trials', venue: 'Primary Battle Arena & Obstacle Track', responsiblePerson: 'Arena Marshals', participants: 'Qualified Teams (2-min test slots)', resources: 'Stopwatch & Telemetry Display', sessionType: 'MAIN', description: 'Track surface friction and sensor calibration practice.', status: 'PENDING' },
-        { id: 'rc_3', day: day1, time: '10:30 AM - 01:00 PM', duration: '150 mins', activity: 'Round 1: Qualifying Heats & Autonomous Time Trials', venue: 'Battle Arena & Track A/B', responsiblePerson: 'Head Referee & Track Judges', participants: `${numTeams} Bot Squads`, resources: 'High-speed Camera, LED Arena Lights', sessionType: 'EVALUATION', description: 'Knockout heats and timed autonomous track runs.', status: 'PENDING' },
-        { id: 'rc_4', day: day1, time: '01:00 PM - 02:00 PM', duration: '60 mins', activity: 'Pit Repair Lunch & Battery Re-charge Buffer', venue: 'Pit Area & Dining Center', responsiblePerson: 'Technical Support Volunteers', participants: 'All Crews', resources: 'Charging Stations, Soldering Benches', sessionType: 'BREAK', description: 'Crucial battery recharging, motor replacements and crew lunch.', status: 'PENDING' },
-        { id: 'rc_5', day: day1, time: '02:00 PM - 03:45 PM', duration: '105 mins', activity: 'Grand Finals: Multi-Bot Arena Showdown & Championship', venue: 'Central Reinforced Arena', responsiblePerson: 'Grand Referees & Commentator', participants: 'Top 8 Finalist Teams', resources: 'Polycarbonate Shields, Pyrotechnics', sessionType: 'MAIN', description: 'High-octane final rounds with live commentator commentary.', status: 'PENDING' },
-        { id: 'rc_6', day: day1, time: '04:00 PM - 04:45 PM', duration: '45 mins', activity: 'Robo-Master Championship Trophy & Awards', venue: 'Main Arena Podium', responsiblePerson: 'Chief Guest & Dean', participants: 'All Teams & Spectators', resources: 'Trophies, Hardware Vouchers, Certificates', sessionType: 'KEYNOTE', description: 'Best Engineering, Fastest Lap, and Champion Awards.', status: 'PENDING' }
-      );
-      break;
+  const day1Agenda = generateDayItems(day1Templates, 'DAY 1');
+  const day2Agenda = day2Templates ? generateDayItems(day2Templates, 'DAY 2') : [];
 
-    case 'Cultural Fest':
-      items.push(
-        { id: 'cf_1', day: day1, time: '09:00 AM - 10:00 AM', duration: '60 mins', activity: 'Green Room Check-in & Audio-Visual Sound Check', venue: `${venue} - Green Rooms & Main Stage`, responsiblePerson: 'Stage Managers & Sound Engineer', participants: 'Performing Artists & Bands', resources: 'Line Arrays, Stage Monitors, Wireless Mics', sessionType: 'SETUP', description: 'Artist track loading, acoustic level tuning, and dressing room allocation.', status: 'PENDING' },
-        { id: 'cf_2', day: day1, time: '10:00 AM - 10:30 AM', duration: '30 mins', activity: 'Fest Inauguration & Traditional Lamp Lighting', venue: 'Main Stage', responsiblePerson: 'Cultural Secretary & Dignitaries', participants: 'Full College Gathering', resources: 'Traditional Lamp, Floral Decor', sessionType: 'KEYNOTE', description: 'Opening invocation and cultural fest declaration.', status: 'PENDING' },
-        { id: 'cf_3', day: day1, time: '10:45 AM - 01:00 PM', duration: '135 mins', activity: 'Segment 1: Classical & Solo Music / Instrumental Battles', venue: 'Auditorium Main Stage', responsiblePerson: 'Anchors & Music Jury Panel', participants: 'Solo Vocalists & Instrumentalists', resources: 'Stage Spotlights & Acoustic Equalizer', sessionType: 'MAIN', description: 'Vocal competitions with strict 5-min performance + 2-min changeover.', status: 'PENDING' },
-        { id: 'cf_4', day: day1, time: '01:00 PM - 02:00 PM', duration: '60 mins', activity: 'Lunch & Campus Carnival Stalls', venue: 'Fest Lawn & Food Court', responsiblePerson: 'Student Council Leads', participants: 'All Students & Performers', resources: 'Food Stalls & Ambient Music', sessionType: 'BREAK', description: 'Lunch break, acoustic street plays and flea market.', status: 'PENDING' },
-        { id: 'cf_5', day: day1, time: '02:00 PM - 04:30 PM', duration: '150 mins', activity: 'Segment 2: Mega Group Dance, Theatrical Drama & Runway', venue: 'Main Stage', responsiblePerson: 'Stage Operations Lead & Dance Jury', participants: 'Dance Troupes & Drama Casts', resources: 'Stage Smoke, Intelligent Moving Lights', sessionType: 'MAIN', description: 'High-energy synchronized group dance competitions.', status: 'PENDING' },
-        { id: 'cf_6', day: day1, time: '04:45 PM - 06:00 PM', duration: '75 mins', activity: 'Star Night Performance, Trophy Gala & Overall Champions', venue: 'Open Air Amphitheatre', responsiblePerson: 'Principal & Cultural President', participants: 'Full Audience', resources: 'Concert Lighting, Rolling Trophies, Certificates', sessionType: 'KEYNOTE', description: 'Celebrity guest address, rolling trophy for best department.', status: 'PENDING' }
-      );
-      break;
-
-    case 'Technical Quiz':
-      items.push(
-        { id: 'tq_1', day: day1, time: '09:00 AM - 09:30 AM', duration: '30 mins', activity: 'Quiz Team Check-in & OMR Sheet / Device Setup', venue: 'Auditorium Lecture Hall 1', responsiblePerson: 'Quiz Master Coordinators', participants: 'All Registered Teams', resources: 'OMR Answer Keys / Quiz Clickers', sessionType: 'SETUP', description: 'Seat allocation and verification of team pairings.', status: 'PENDING' },
-        { id: 'tq_2', day: day1, time: '09:45 AM - 10:45 AM', duration: '60 mins', activity: 'Round 1: Written Eliminator Prelims (30 Questions)', venue: 'Auditorium Lecture Hall 1', responsiblePerson: 'Quiz Master & Invigilators', participants: 'All Teams (Individual / Duo)', resources: 'Question Booklets & Digital Countdown Clock', sessionType: 'EVALUATION', description: '30 high-speed questions spanning general tech, CS history, and AI.', status: 'PENDING' },
-        { id: 'tq_3', day: day1, time: '10:45 AM - 11:30 AM', duration: '45 mins', activity: 'Score Tabulation Buffer & Audience Brain Teasers', venue: 'Auditorium Main Stage', responsiblePerson: 'Assistant Quiz Master', participants: 'All Attendees', resources: 'Audience Chocolates & Live Scoreboard', sessionType: 'BUFFER', description: 'Audience spot prizes while paper corrections finalize top 6 finalist teams.', status: 'PENDING' },
-        { id: 'tq_4', day: day1, time: '11:30 AM - 01:15 PM', duration: '105 mins', activity: 'Round 2: Stage Finals (Infinite Bounce, Audio-Visual & Buzzer)', venue: 'Auditorium Stage Pods', responsiblePerson: 'Grand Quiz Master', participants: 'Top 6 Finalist Teams on Stage', resources: 'Hardware Buzzer System, Dual Projectors', sessionType: 'MAIN', description: '5 intense stage rounds including Rapid Fire, Audio-Visual, and Negative Buzzer.', status: 'PENDING' },
-        { id: 'tq_5', day: day1, time: '01:15 PM - 02:00 PM', duration: '45 mins', activity: 'Quiz Champion Felicitations & Prize Distribution', venue: 'Auditorium Stage', responsiblePerson: 'HOD & Quiz Master', participants: 'Winners & Audience', resources: 'Medals, Book Vouchers & Verified Certificates', sessionType: 'KEYNOTE', description: 'Grand Quiz Champion Trophy handover.', status: 'PENDING' }
-      );
-      break;
-
-    case 'Workshop & Bootcamp':
-      items.push(
-        { id: 'wb_1', day: day1, time: '09:00 AM - 09:30 AM', duration: '30 mins', activity: 'Registration, Badge Pickup & Resource Packets', venue: `${venue} - Lab Entrance`, responsiblePerson: 'Workshop Coordinators', participants: 'All Registered Learners', resources: 'Lab Access Cards, Resource Sheets', sessionType: 'SETUP', description: 'Attendance check-in and repo clone links handout.', status: 'PENDING' },
-        { id: 'wb_2', day: day1, time: '09:30 AM - 11:00 AM', duration: '90 mins', activity: 'Session 1: Architectural Foundations & Core Concepts', venue: 'Computer Center Seminar Hall', responsiblePerson: 'Lead Industry Instructor', participants: 'All Attendees', resources: 'Projector, Live Coding Terminal', sessionType: 'KEYNOTE', description: 'Interactive lecture on system foundations and real-world architectures.', status: 'PENDING' },
-        { id: 'wb_3', day: day1, time: '11:00 AM - 11:15 AM', duration: '15 mins', activity: 'Morning Tea & Quick Networking Pause', venue: 'Seminar Foyer', responsiblePerson: 'Hospitality Volunteers', participants: 'Learners & Instructors', resources: 'Tea & Snacks', sessionType: 'BREAK', description: 'Coffee recharge before hands-on terminal session.', status: 'PENDING' },
-        { id: 'wb_4', day: day1, time: '11:15 AM - 01:00 PM', duration: '105 mins', activity: 'Session 2: Hands-on Guided Lab Exercise (Part 1)', venue: 'Hands-on Cloud Lab 1 & 2', responsiblePerson: 'Teaching Assistants & Mentors (4 Staff)', participants: 'All Attendees (1-on-1 Help available)', resources: 'Dedicated GPU/Cloud Containers', sessionType: 'MAIN', description: 'Building the fundamental pipelines step-by-step.', status: 'PENDING' },
-        { id: 'wb_5', day: day1, time: '01:00 PM - 02:00 PM', duration: '60 mins', activity: 'Networking Lunch', venue: 'Executive Dining Center', responsiblePerson: 'Hospitality Team', participants: 'All Attendees', resources: 'Buffet Setup', sessionType: 'BREAK', description: 'Lunch break and informal Q&A with speaker.', status: 'PENDING' },
-        { id: 'wb_6', day: day1, time: '02:00 PM - 04:00 PM', duration: '120 mins', activity: 'Session 3: Advanced Implementation & Capstone Challenge', venue: 'Cloud Labs', responsiblePerson: 'Lead Speaker & TAs', participants: 'All Learners', resources: 'Real-time Test Benchmark Suite', sessionType: 'MAIN', description: 'Developing and deploying the end-to-end capstone solution.', status: 'PENDING' },
-        { id: 'wb_7', day: day1, time: '04:00 PM - 04:45 PM', duration: '45 mins', activity: 'Q&A, Capstone Assessment & Certificate Handout', venue: 'Seminar Hall', responsiblePerson: 'Instructor & Department Head', participants: 'All Certified Learners', resources: 'Workshop Completion Certificates with QR', sessionType: 'KEYNOTE', description: 'Final Q&A review, skill badge distribution, and verified digital certificates.', status: 'PENDING' }
-      );
-      break;
-
-    default:
-      items.push(
-        { id: 'gen_1', day: day1, time: '09:00 AM - 09:30 AM', duration: '30 mins', activity: 'Participant Check-in & QR Attendance', venue, responsiblePerson: 'Volunteers', participants: 'All', resources: 'QR Scanner', sessionType: 'SETUP', description: 'Registration verification.', status: 'PENDING' },
-        { id: 'gen_2', day: day1, time: '09:30 AM - 10:00 AM', duration: '30 mins', activity: 'Inauguration & Rules Briefing', venue, responsiblePerson: 'Coordinator', participants: 'All', resources: 'Mic & Projector', sessionType: 'KEYNOTE', description: 'Welcome address.', status: 'PENDING' },
-        { id: 'gen_3', day: day1, time: '10:00 AM - 01:00 PM', duration: '180 mins', activity: 'Session 1: Main Event Activities', venue, responsiblePerson: 'Panel Members', participants: 'Teams', resources: 'Room facilities', sessionType: 'MAIN', description: 'Core event segment.', status: 'PENDING' },
-        { id: 'gen_4', day: day1, time: '01:00 PM - 02:00 PM', duration: '60 mins', activity: 'Lunch Break', venue: 'Cafeteria', responsiblePerson: 'Hospitality', participants: 'All', resources: 'Food', sessionType: 'BREAK', description: 'Lunch.', status: 'PENDING' },
-        { id: 'gen_5', day: day1, time: '02:00 PM - 04:00 PM', duration: '120 mins', activity: 'Session 2: Final Evaluations', venue, responsiblePerson: 'Jury', participants: 'Finalists', resources: 'AV', sessionType: 'EVALUATION', description: 'Final scoring.', status: 'PENDING' },
-        { id: 'gen_6', day: day1, time: '04:00 PM - 04:45 PM', duration: '45 mins', activity: 'Valedictory & Awards', venue, responsiblePerson: 'Principal', participants: 'All', resources: 'Certificates & Trophies', sessionType: 'KEYNOTE', description: 'Prize ceremony.', status: 'PENDING' }
-      );
-      break;
-  }
-
-  return items;
+  return [...day1Agenda, ...day2Agenda];
 }
 
 function parseTime(value: string | undefined, fallbackHour: number) {

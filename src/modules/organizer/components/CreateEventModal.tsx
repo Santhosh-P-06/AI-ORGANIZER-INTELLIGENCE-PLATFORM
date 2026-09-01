@@ -36,6 +36,7 @@ import {
   FolderKanban,
   FileSpreadsheet,
   Activity,
+  Save,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -73,8 +74,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   // STEP 2 — Event-Specific Parameter Blocks
   const [eventConfig, setEventConfig] = useState<Record<string, any>>({
     // Hackathon defaults
-    numTeams: 24,
-    teamSizeMin: 2,
+    numTeams: 20,
+    teamSizeMin: 3,
     teamSizeMax: 4,
     hackathonDurationHours: 24,
     eventMode: 'Offline / On-Campus',
@@ -83,13 +84,13 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     hasIdeaRound: true,
     hasCodingRound: true,
     hasFinalPresentation: true,
-    mentorCount: 8,
+    mentorCount: 10,
     mentoringMode: 'Parallel (Mentors visit individual team pods)',
-    numJudges: 6,
-    numPanels: 3,
+    numJudges: 5,
+    numPanels: 5,
     judgeExpertise: 'AI & Data Engineering, System Scalability, Product Design',
-    evalDurationPerTeamMins: 10,
-    qaDurationMins: 5,
+    evalDurationPerTeamMins: 6,
+    qaDurationMins: 2,
     requiredLabs: 'Innovation Computing Labs 1-4, High-speed LAN, 2x 4S LiPo charging pods',
     submissionDeadline: '12:00 PM (Day 2)',
     prizeDistributionTime: '04:00 PM (Day 2)',
@@ -168,19 +169,17 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     setEventConfig((prev) => ({ ...prev, [field]: val }));
   };
 
-  // Live AI Feasibility & Conflict Calculation
+  // Live AI Feasibility Calculation
   const feasibilityCheck = useMemo(() => {
     const panels = Number(eventConfig.numPanels || eventConfig.numParallelTracks || 3);
-    const teams = Number(eventConfig.numTeams || eventConfig.numPapers || eventConfig.numProjects || 24);
-    const evalMins = Number(eventConfig.evalDurationPerTeamMins || eventConfig.paperPresentationMins || eventConfig.stallEvalMins || 10);
-    const qaMins = Number(eventConfig.qaDurationMins || eventConfig.paperQaMins || 4);
+    const teams = Number(eventConfig.numTeams || eventConfig.numPapers || eventConfig.numProjects || 20);
+    const evalMins = Number(eventConfig.evalDurationPerTeamMins || eventConfig.paperPresentationMins || eventConfig.stallEvalMins || 6);
+    const qaMins = Number(eventConfig.qaDurationMins || eventConfig.paperQaMins || 2);
     const totalSlotMins = evalMins + qaMins;
 
     const teamsPerPanel = Math.ceil(teams / Math.max(1, panels));
     const totalRequiredEvalMinutes = teamsPerPanel * totalSlotMins;
-
-    // Time window calculation
-    const isOverloaded = totalRequiredEvalMinutes > 240; // > 4 hours evaluation in single shift
+    const isOverloaded = totalRequiredEvalMinutes > 240;
 
     return {
       teamsPerPanel,
@@ -192,7 +191,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     };
   }, [eventConfig, expectedParticipants, numVolunteers]);
 
-  // AI Generated Schemas
+  // AI Generated Schemas & Editing States
   const [generatedFields, setGeneratedFields] = useState<FormField[]>([]);
   const [generatedAgenda, setGeneratedAgenda] = useState<AgendaItem[]>([]);
   const [intelligenceReport, setIntelligenceReport] = useState<IntelligenceReport | null>(null);
@@ -200,9 +199,27 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [isGeneratingAgenda, setIsGeneratingAgenda] = useState(false);
   const [selectedDayTab, setSelectedDayTab] = useState<string>('ALL');
 
-  // Field editing state
-  const [editingField, setEditingField] = useState<FormField | null>(null);
-  const [editingAgendaItem, setEditingAgendaItem] = useState<AgendaItem | null>(null);
+  // Interactive Form Field Editing
+  const [showAddField, setShowAddField] = useState(false);
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState<FormField['type']>('text');
+  const [newFieldRequired, setNewFieldRequired] = useState(false);
+  const [newFieldPlaceholder, setNewFieldPlaceholder] = useState('');
+
+  // Interactive Agenda Item Editing
+  const [editingAgendaId, setEditingAgendaId] = useState<string | null>(null);
+  const [agendaDraft, setAgendaDraft] = useState<Partial<AgendaItem>>({});
+  const [showAddSlot, setShowAddSlot] = useState(false);
+  const [newSlotDraft, setNewSlotDraft] = useState<Partial<AgendaItem>>({
+    day: 'DAY 1',
+    time: '09:00 AM - 10:00 AM',
+    duration: '60 mins',
+    activity: 'New Activity Session',
+    venue: 'Main Auditorium',
+    responsiblePerson: 'Volunteer Team',
+    resources: 'Standard AV',
+    sessionType: 'MAIN',
+  });
 
   const eventTypes: EventType[] = [
     'Hackathon',
@@ -257,7 +274,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           startDate: date,
           endDate: isMultiDay ? endDate : date,
           numParticipants: expectedParticipants,
-          numTeams: eventConfig.numTeams || eventConfig.numPapers || eventConfig.numProjects || 24,
+          numTeams: eventConfig.numTeams || eventConfig.numPapers || eventConfig.numProjects || 20,
           numPanels: eventConfig.numPanels || eventConfig.numParallelTracks || 3,
           numOrganizers,
           numVolunteers,
@@ -301,6 +318,103 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     if (generatedAgenda.length === 0) {
       handleGenerateAIAgenda();
     }
+  };
+
+  // Form Field Operations
+  const toggleFieldRequired = (id: string) => {
+    setGeneratedFields((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, required: !f.required } : f))
+    );
+  };
+
+  const handleAddNewField = () => {
+    if (!newFieldLabel.trim()) return;
+    const newField: FormField = {
+      id: `f_custom_${Date.now()}`,
+      label: newFieldLabel.trim(),
+      type: newFieldType,
+      required: newFieldRequired,
+      placeholder: newFieldPlaceholder.trim() || undefined,
+    };
+    setGeneratedFields((prev) => [...prev, newField]);
+    setNewFieldLabel('');
+    setNewFieldPlaceholder('');
+    setShowAddField(false);
+  };
+
+  const moveField = (idx: number, direction: 'UP' | 'DOWN') => {
+    setGeneratedFields((prev) => {
+      const copy = [...prev];
+      const targetIdx = direction === 'UP' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= copy.length) return prev;
+      const temp = copy[idx];
+      copy[idx] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      return copy;
+    });
+  };
+
+  // Agenda Operations
+  const startEditAgenda = (item: AgendaItem) => {
+    setEditingAgendaId(item.id);
+    setAgendaDraft({ ...item });
+  };
+
+  const saveAgendaEdit = (id: string) => {
+    setGeneratedAgenda((prev) =>
+      prev.map((item) => (item.id === id ? ({ ...item, ...agendaDraft } as AgendaItem) : item))
+    );
+    setEditingAgendaId(null);
+    setAgendaDraft({});
+  };
+
+  const cancelAgendaEdit = () => {
+    setEditingAgendaId(null);
+    setAgendaDraft({});
+  };
+
+  const deleteAgendaItem = (id: string) => {
+    setGeneratedAgenda((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const moveAgendaItem = (idx: number, direction: 'UP' | 'DOWN') => {
+    setGeneratedAgenda((prev) => {
+      const copy = [...prev];
+      const targetIdx = direction === 'UP' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= copy.length) return prev;
+      const temp = copy[idx];
+      copy[idx] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      return copy;
+    });
+  };
+
+  const handleAddNewSlot = () => {
+    if (!newSlotDraft.activity?.trim()) return;
+    const newSlot: AgendaItem = {
+      id: `ag_custom_${Date.now()}`,
+      day: newSlotDraft.day || 'DAY 1',
+      time: newSlotDraft.time || '09:00 AM - 10:00 AM',
+      duration: newSlotDraft.duration || '60 mins',
+      activity: newSlotDraft.activity.trim(),
+      venue: newSlotDraft.venue?.trim() || venue,
+      responsiblePerson: newSlotDraft.responsiblePerson?.trim() || 'Volunteers',
+      resources: newSlotDraft.resources?.trim() || 'Standard AV',
+      sessionType: newSlotDraft.sessionType || 'MAIN',
+      status: 'PENDING',
+    };
+    setGeneratedAgenda((prev) => [...prev, newSlot]);
+    setShowAddSlot(false);
+    setNewSlotDraft({
+      day: 'DAY 1',
+      time: '09:00 AM - 10:00 AM',
+      duration: '60 mins',
+      activity: '',
+      venue,
+      responsiblePerson: 'Volunteers',
+      resources: 'Standard AV',
+      sessionType: 'MAIN',
+    });
   };
 
   // Final Event Publication
@@ -355,13 +469,13 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
   // Agenda Days filtering
   const distinctDays = useMemo(() => {
-    const days = Array.from(new Set(generatedAgenda.map(a => a.day || 'DAY 1')));
+    const days = Array.from(new Set(generatedAgenda.map((a) => a.day || 'DAY 1')));
     return days.length > 0 ? days : ['DAY 1'];
   }, [generatedAgenda]);
 
   const filteredAgenda = useMemo(() => {
     if (selectedDayTab === 'ALL') return generatedAgenda;
-    return generatedAgenda.filter(a => (a.day || 'DAY 1') === selectedDayTab);
+    return generatedAgenda.filter((a) => (a.day || 'DAY 1') === selectedDayTab);
   }, [generatedAgenda, selectedDayTab]);
 
   if (!isOpen) return null;
@@ -385,8 +499,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             <h2 className="text-xl font-display font-extrabold" style={{ color: 'var(--text-primary)' }}>
               {step === 'COMMON_DETAILS' && 'Step 1: Common Parameters & Logistics'}
               {step === 'EVENT_SPECIFIC' && `Step 2: Specific Requirements for ${type}`}
-              {step === 'FORM_GEN' && 'Step 3: Tailored Registration Form Schema'}
-              {step === 'AGENDA_GEN' && 'Step 4: AI Schedule & Intelligence Report'}
+              {step === 'FORM_GEN' && 'Step 3: Registration Form Schema & Fields'}
+              {step === 'AGENDA_GEN' && 'Step 4: Editable Event Schedule & Timeline'}
             </h2>
           </div>
 
@@ -1180,59 +1294,194 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* STEP 3: DYNAMIC REGISTRATION FORM GENERATOR                                */}
+          {/* STEP 3: DYNAMIC REGISTRATION FORM GENERATOR (With Optional Toggle & Add)   */}
           {/* ========================================================================= */}
           {step === 'FORM_GEN' && (
             <div className="space-y-4 animate-fade-in">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                    Tailored Registration Form Schema
+                    Registration Form Schema & Questions
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Fields automatically customized for <strong>{type}</strong>. Students will complete these upon registration.
+                    Fields automatically customized for <strong>{type}</strong>. You can toggle fields between <strong>Required</strong> and <strong>Optional</strong>, or add new questions.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleGenerateAIForm}
-                  disabled={isGeneratingForm}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-bold text-xs hover:bg-indigo-600/30 transition-all cursor-pointer"
-                >
-                  {isGeneratingForm ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  <span>Regenerate with AI</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddField(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Question</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateAIForm}
+                    disabled={isGeneratingForm}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-bold text-xs hover:bg-indigo-600/30 transition-all cursor-pointer"
+                  >
+                    {isGeneratingForm ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    <span>Regenerate with AI</span>
+                  </button>
+                </div>
               </div>
 
+              {/* Add Custom Question Form Drawer */}
+              {showAddField && (
+                <div className="p-4 rounded-2xl bg-slate-900 border border-indigo-500/40 space-y-3 animate-fade-in shadow-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-400 text-xs flex items-center gap-1.5">
+                      <Plus className="w-4 h-4" /> Add Custom Registration Field
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddField(false)}
+                      className="text-slate-400 hover:text-slate-200"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-400 mb-1">Field Label / Question *</label>
+                      <input
+                        type="text"
+                        value={newFieldLabel}
+                        onChange={(e) => setNewFieldLabel(e.target.value)}
+                        placeholder="e.g. GitHub Repository, Project Pitch Deck Link..."
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Field Input Type</label>
+                      <select
+                        value={newFieldType}
+                        onChange={(e) => setNewFieldType(e.target.value as any)}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      >
+                        <option value="text">Text (Single Line)</option>
+                        <option value="textarea">Textarea (Multi Line)</option>
+                        <option value="email">Email Address</option>
+                        <option value="tel">Phone / Mobile</option>
+                        <option value="number">Number</option>
+                        <option value="select">Dropdown Select</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Placeholder Text (Optional)</label>
+                      <input
+                        type="text"
+                        value={newFieldPlaceholder}
+                        onChange={(e) => setNewFieldPlaceholder(e.target.value)}
+                        placeholder="e.g. https://github.com/..."
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div className="flex items-end pb-1">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={newFieldRequired}
+                          onChange={(e) => setNewFieldRequired(e.target.checked)}
+                          className="rounded border-slate-700 text-indigo-600 focus:ring-0"
+                        />
+                        <span>Is this field mandatory (Required)?</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddField(false)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 text-xs font-semibold hover:text-white cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddNewField}
+                      className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Add Field to Form
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Fields List */}
-              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+              <div className="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
                 {generatedFields.map((field, idx) => (
                   <div
                     key={field.id}
-                    className="p-3.5 rounded-2xl border flex items-center justify-between gap-3 group"
+                    className="p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition-all hover:border-slate-700"
                     style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}
                   >
                     <div className="flex items-center gap-3">
+                      <div className="flex flex-col gap-0.5">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => moveField(idx, 'UP')}
+                          className="text-slate-500 hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                        >
+                          <MoveUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === generatedFields.length - 1}
+                          onClick={() => moveField(idx, 'DOWN')}
+                          className="text-slate-500 hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                        >
+                          <MoveDown className="w-3 h-3" />
+                        </button>
+                      </div>
+
                       <span className="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 font-mono text-[10px] font-bold flex items-center justify-center">
                         {idx + 1}
                       </span>
+
                       <div>
                         <div className="font-bold text-xs flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                           <span>{field.label}</span>
-                          {field.required && <span className="text-rose-500 text-[10px]">*Required</span>}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          Type: {field.type} {field.options ? `• [${field.options.length} options]` : ''}
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          Type: {field.type} {field.options ? `• [${field.options.length} options]` : ''} {field.placeholder ? `• "${field.placeholder}"` : ''}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                    <div className="flex items-center gap-2">
+                      {/* Optional / Required Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={() => toggleFieldRequired(field.id)}
+                        className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          field.required
+                            ? 'bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25'
+                            : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                        }`}
+                        title="Click to toggle between Required and Optional"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${field.required ? 'bg-rose-400 animate-pulse' : 'bg-slate-500'}`} />
+                        <span>{field.required ? 'Required (Click for Optional)' : 'Optional (Click for Required)'}</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {
-                          setGeneratedFields(prev => prev.filter(f => f.id !== field.id));
+                          setGeneratedFields((prev) => prev.filter((f) => f.id !== field.id));
                         }}
                         className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
                         title="Delete Field"
@@ -1247,123 +1496,369 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* STEP 4: OPTIMIZED SCHEDULE TIMELINE & AI INTELLIGENCE REPORT               */}
+          {/* STEP 4: FULLY EDITABLE SCHEDULE TIMELINE                                   */}
           {/* ========================================================================= */}
           {step === 'AGENDA_GEN' && (
-            <div className="space-y-6 animate-fade-in">
-              {/* Top AI Intelligence Report Header Card */}
-              {intelligenceReport && (
-                <div className="p-5 rounded-3xl bg-gradient-to-r from-indigo-950/40 via-slate-900 to-indigo-950/40 border border-indigo-500/30 space-y-4 shadow-xl">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-500/20">
-                    <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
-                      <Activity className="w-4 h-4" />
-                      <span>AI Operational Intelligence & Readiness Report</span>
+            <div className="space-y-4 animate-fade-in">
+              {/* Header & Controls */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                    Editable Event Schedule & Timeline
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Click <strong>Edit</strong> on any session to adjust timings, duration, venue, or personnel. You can also reorder or add custom slots.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSlot(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Schedule Slot</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateAIAgenda}
+                    disabled={isGeneratingAgenda}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-bold text-xs hover:bg-indigo-600/30 transition-all cursor-pointer"
+                  >
+                    {isGeneratingAgenda ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    <span>Regenerate</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Day Filter Tabs */}
+              {distinctDays.length > 1 && (
+                <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDayTab('ALL')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                      selectedDayTab === 'ALL' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    All Days
+                  </button>
+                  {distinctDays.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setSelectedDayTab(d)}
+                      className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                        selectedDayTab === d ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Custom Slot Drawer */}
+              {showAddSlot && (
+                <div className="p-4 rounded-2xl bg-slate-900 border border-indigo-500/40 space-y-3 animate-fade-in shadow-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-400 text-xs flex items-center gap-1.5">
+                      <Plus className="w-4 h-4" /> Add New Schedule Slot
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSlot(false)}
+                      className="text-slate-400 hover:text-slate-200"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Day Tag</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.day}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, day: e.target.value })}
+                        placeholder="DAY 1"
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-slate-400">Event Readiness:</span>
-                      <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-extrabold text-xs">
-                        {intelligenceReport.readinessScore} / 100
-                      </span>
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-400 mb-1">Time Slot Window</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.time}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, time: e.target.value })}
+                        placeholder="09:00 AM - 10:00 AM"
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Duration</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.duration}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, duration: e.target.value })}
+                        placeholder="60 mins"
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
                     </div>
                   </div>
 
-                  {/* 4 Core Pillars Metrics */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                    <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Time Efficiency</span>
-                      <strong className="text-indigo-400 font-display text-base font-bold">{intelligenceReport.timeEfficiency}%</strong>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-400 mb-1">Activity / Session Title *</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.activity}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, activity: e.target.value })}
+                        placeholder="e.g. Grand Finale Presentations & Demo"
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
                     </div>
-                    <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Resource Utilization</span>
-                      <strong className="text-emerald-400 font-display text-base font-bold">{intelligenceReport.resourceUtilization}%</strong>
-                    </div>
-                    <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Participant Experience</span>
-                      <strong className="text-sky-400 font-display text-base font-bold">{intelligenceReport.participantExperience}%</strong>
-                    </div>
-                    <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Feasibility Score</span>
-                      <strong className="text-purple-400 font-display text-base font-bold">{intelligenceReport.operationalFeasibility}%</strong>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Session Type Badge</label>
+                      <select
+                        value={newSlotDraft.sessionType}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, sessionType: e.target.value as any })}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      >
+                        <option value="MAIN">MAIN</option>
+                        <option value="PARALLEL">PARALLEL</option>
+                        <option value="BREAK">BREAK</option>
+                        <option value="SETUP">SETUP</option>
+                        <option value="BUFFER">BUFFER</option>
+                        <option value="EVALUATION">EVALUATION</option>
+                        <option value="KEYNOTE">KEYNOTE</option>
+                      </select>
                     </div>
                   </div>
 
-                  {/* Recommendations and Risks */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    {intelligenceReport.recommendations && intelligenceReport.recommendations.length > 0 && (
-                      <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 space-y-1.5">
-                        <span className="font-bold text-emerald-400 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> AI Recommendations
-                        </span>
-                        <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
-                          {intelligenceReport.recommendations.map((rec, i) => (
-                            <li key={i}>{rec}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Venue / Room</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.venue}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, venue: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Responsible Person / Group</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.responsiblePerson}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, responsiblePerson: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Resources Required</label>
+                      <input
+                        type="text"
+                        value={newSlotDraft.resources}
+                        onChange={(e) => setNewSlotDraft({ ...newSlotDraft, resources: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border text-xs"
+                        style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
 
-                    {intelligenceReport.conflictsResolved && (
-                      <div className="p-3.5 rounded-2xl bg-indigo-500/5 border border-indigo-500/20 space-y-1.5">
-                        <span className="font-bold text-indigo-400 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-                          <ShieldAlert className="w-3.5 h-3.5" /> Verified Validations
-                        </span>
-                        <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
-                          {intelligenceReport.conflictsResolved.map((conf, i) => (
-                            <li key={i}>✓ {conf}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSlot(false)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 text-xs font-semibold hover:text-white cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddNewSlot}
+                      className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Add Slot to Timeline
+                    </button>
                   </div>
                 </div>
               )}
 
-              {/* Interactive Schedule Table */}
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                      Conflict-Free Event Timeline Schedule
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      {generatedAgenda.length} sequenced operational blocks with role allocations and venue assignments.
-                    </p>
-                  </div>
+              {/* Agenda Items List */}
+              <div className="space-y-3 max-h-[52vh] overflow-y-auto pr-1">
+                {filteredAgenda.map((item, idx) => {
+                  const isEditing = editingAgendaId === item.id;
 
-                  {/* Day Tabs Filter */}
-                  {distinctDays.length > 1 && (
-                    <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDayTab('ALL')}
-                        className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${selectedDayTab === 'ALL' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  if (isEditing) {
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/50 space-y-3 shadow-xl animate-fade-in"
                       >
-                        All Days
-                      </button>
-                      {distinctDays.map((d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setSelectedDayTab(d)}
-                          className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${selectedDayTab === actionDayStyle(d) ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                        >
-                          {d}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                          <span className="font-bold text-indigo-400 text-xs flex items-center gap-1.5">
+                            <Edit3 className="w-3.5 h-3.5" /> Edit Schedule Item #{idx + 1}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">{item.id}</span>
+                        </div>
 
-                {/* Agenda Items List */}
-                <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
-                  {filteredAgenda.map((item, idx) => (
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Day Tag</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.day || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, day: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="block text-slate-400 text-[10px] mb-1">Time Slot Window</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.time || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, time: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs font-mono font-bold"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Duration</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.duration || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, duration: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div className="sm:col-span-2">
+                            <label className="block text-slate-400 text-[10px] mb-1">Activity Name</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.activity || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, activity: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs font-bold"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Session Type</label>
+                            <select
+                              value={agendaDraft.sessionType || 'MAIN'}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, sessionType: e.target.value as any })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            >
+                              <option value="MAIN">MAIN</option>
+                              <option value="PARALLEL">PARALLEL</option>
+                              <option value="BREAK">BREAK</option>
+                              <option value="SETUP">SETUP</option>
+                              <option value="BUFFER">BUFFER</option>
+                              <option value="EVALUATION">EVALUATION</option>
+                              <option value="KEYNOTE">KEYNOTE</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Venue / Room</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.venue || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, venue: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Responsible Person</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.responsiblePerson || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, responsiblePerson: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 text-[10px] mb-1">Resources</label>
+                            <input
+                              type="text"
+                              value={agendaDraft.resources || ''}
+                              onChange={(e) => setAgendaDraft({ ...agendaDraft, resources: e.target.value })}
+                              className="w-full px-2.5 py-1.5 rounded-xl border text-xs"
+                              style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-1 border-t border-slate-800">
+                          <button
+                            type="button"
+                            onClick={cancelAgendaEdit}
+                            className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 text-xs font-semibold hover:text-white cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => saveAgendaEdit(item.id)}
+                            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Save Changes</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
                     <div
                       key={item.id}
-                      className="p-3.5 rounded-2xl border space-y-2 transition-all hover:border-slate-700"
+                      className="p-3.5 rounded-2xl border space-y-2 transition-all hover:border-slate-700 group"
                       style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-0.5 mr-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => moveAgendaItem(idx, 'UP')}
+                              className="text-slate-500 hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                              title="Move Slot Up"
+                            >
+                              <MoveUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === filteredAgenda.length - 1}
+                              onClick={() => moveAgendaItem(idx, 'DOWN')}
+                              className="text-slate-500 hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                              title="Move Slot Down"
+                            >
+                              <MoveDown className="w-3 h-3" />
+                            </button>
+                          </div>
+
                           <span className="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-slate-800 text-slate-300">
                             {item.day || 'DAY 1'}
                           </span>
@@ -1383,12 +1878,34 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                           )}
                         </div>
 
-                        <span className="font-mono text-xs font-bold text-indigo-400">
-                          {item.time} ({item.duration || '30 mins'})
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs font-bold text-indigo-400">
+                            {item.time} ({item.duration || '30 mins'})
+                          </span>
+
+                          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                            <button
+                              type="button"
+                              onClick={() => startEditAgenda(item)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 font-bold text-[11px] transition-colors cursor-pointer"
+                              title="Edit this schedule slot"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteAgendaItem(item.id)}
+                              className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                              title="Delete this slot"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-400 pt-1.5 border-t border-slate-800/60">
                         <div>
                           <span className="font-medium text-slate-300">Venue:</span> {item.venue}
                         </div>
@@ -1400,8 +1917,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1479,7 +1996,3 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     </div>
   );
 };
-
-function actionDayStyle(d: string) {
-  return d;
-}
