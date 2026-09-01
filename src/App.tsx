@@ -1,5 +1,8 @@
+'use client';
+
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { Header } from './shared/components';
 import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/auth/LoginPage';
@@ -9,6 +12,9 @@ import { VolunteerDashboard } from './modules/volunteer';
 import { ParticipantDashboard } from './modules/participant';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 
+/* ──────────────────────────────────────────────────────────
+   App Content (inner, access to AppContext + ThemeContext)
+────────────────────────────────────────────────────────── */
 const AppContent: React.FC = () => {
   const { currentUser, currentRole } = useApp();
 
@@ -29,7 +35,10 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white">
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ backgroundColor: 'var(--surface-bg)', color: 'var(--text-primary)' }}
+    >
       {/* Global Navigation Header */}
       <Header
         onOpenAuth={handleOpenAuth}
@@ -72,11 +81,16 @@ const AppContent: React.FC = () => {
   );
 };
 
+/* ──────────────────────────────────────────────────────────
+   Root App
+────────────────────────────────────────────────────────── */
 export function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </ThemeProvider>
   );
 }
 

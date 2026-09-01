@@ -387,3 +387,4 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
     </div>
   );
 };
+

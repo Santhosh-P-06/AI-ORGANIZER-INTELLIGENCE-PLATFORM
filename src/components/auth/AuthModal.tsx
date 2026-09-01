@@ -1,22 +1,13 @@
-import React, { useState } from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { UserRole } from '../../types';
 import { useApp } from '../../context/AppContext';
+import { useTheme } from '../../context/ThemeContext';
 import {
-  X,
-  Lock,
-  Mail,
-  Shield,
-  GraduationCap,
-  UserCheck,
-  Calendar,
-  Eye,
-  EyeOff,
-  Sparkles,
-  CheckCircle2,
-  AlertCircle,
-  KeyRound,
-  ArrowRight,
-  Zap,
+  X, Lock, Mail, Shield, GraduationCap, UserCheck, Calendar,
+  Eye, EyeOff, Sparkles, CheckCircle2, AlertCircle,
+  ArrowRight, Zap, ChevronRight,
 } from 'lucide-react';
 
 interface AuthModalProps {
@@ -27,196 +18,152 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
-  isOpen,
-  onClose,
-  initialRole = 'STUDENT',
-  onSuccess,
+  isOpen, onClose, initialRole = 'STUDENT', onSuccess,
 }) => {
   const { login, switchDemoRole } = useApp();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('password123');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSuccess, setForgotSuccess] = useState(false);
 
-  // Update selected role if initialRole changes when opening
-  React.useEffect(() => {
-    if (isOpen && initialRole) {
-      setSelectedRole(initialRole);
-      setError(null);
-    }
+  useEffect(() => {
+    if (isOpen && initialRole) { setSelectedRole(initialRole); setError(null); }
   }, [isOpen, initialRole]);
+
+  useEffect(() => {
+    if (isOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const roleConfigs: Record<
-    UserRole,
-    {
-      title: string;
-      subtitle: string;
-      fieldLabel: string;
-      fieldPlaceholder: string;
-      icon: any;
-      defaultUser: string;
-      defaultName: string;
-      color: string;
-      bg: string;
-      badgeColor: string;
-      gradient: string;
-      features: string[];
-    }
-  > = {
-    STUDENT: {
-      title: 'Student Portal Sign In',
-      subtitle: 'Browse college events, generate smart QR passes, and download verified certificates',
-      fieldLabel: 'Student College Email / Roll Number',
-      fieldPlaceholder: 'student@college.edu or 21CS042',
-      icon: GraduationCap,
-      defaultUser: '21CS042',
-      defaultName: 'Rahul K (3rd Year CSE)',
-      color: 'text-sky-400',
-      bg: 'bg-sky-600 hover:bg-sky-500',
-      badgeColor: 'bg-sky-950/70 border-sky-500/30 text-sky-300',
-      gradient: 'from-sky-500/20 to-blue-500/10 border-sky-500/30',
-      features: ['Event Registration', 'Dynamic QR Badges', 'Live Schedules', 'Verified E-Certificates'],
-    },
-    ORGANISER: {
-      title: 'Organiser Control Center',
-      subtitle: 'Create events, generate AI minute-by-minute agendas, and manage jury panels',
-      fieldLabel: 'Institutional Faculty Email / Organiser ID',
-      fieldPlaceholder: 'organiser@college.edu',
-      icon: Calendar,
-      defaultUser: 'organiser@college.edu',
-      defaultName: 'Prof. Rajesh (CSE Coordinator)',
-      color: 'text-indigo-400',
-      bg: 'bg-indigo-600 hover:bg-indigo-500',
-      badgeColor: 'bg-indigo-950/70 border-indigo-500/30 text-indigo-300',
-      gradient: 'from-indigo-500/20 to-purple-500/10 border-indigo-500/30',
-      features: ['AI Agenda Scheduling', 'Smart Form Builder', 'Panel Matrix Allocation', 'Live Evaluation Tracking'],
-    },
-    VOLUNTEER: {
-      title: 'Volunteer Operations Hub',
-      subtitle: 'Fast QR barcode scanning, attendance check-ins, and venue round monitoring',
-      fieldLabel: 'Volunteer Email / Student Roll No',
-      fieldPlaceholder: 'volunteer@college.edu or 22IT019',
-      icon: UserCheck,
-      defaultUser: 'volunteer@college.edu',
-      defaultName: 'Priya V (Attendance Lead)',
-      color: 'text-emerald-400',
-      bg: 'bg-emerald-600 hover:bg-emerald-500',
-      badgeColor: 'bg-emerald-950/70 border-emerald-500/30 text-emerald-300',
-      gradient: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/30',
-      features: ['High-Speed QR Scanner', 'Arrival Time Logging', 'Roster Slot View', 'Round Status Updates'],
-    },
-    ADMIN: {
-      title: 'Institutional Administration',
-      subtitle: 'System auditing, department quota governance, and platform access control',
-      fieldLabel: 'Administrator ID / Master Email',
-      fieldPlaceholder: 'ADM-101 or admin@college.edu',
-      icon: Shield,
-      defaultUser: 'ADM-101',
-      defaultName: 'Dr. Arthur Vance (Dean of Academics)',
-      color: 'text-amber-400',
-      bg: 'bg-amber-600 hover:bg-amber-500',
-      badgeColor: 'bg-amber-950/70 border-amber-500/30 text-amber-300',
-      gradient: 'from-amber-500/20 to-orange-500/10 border-amber-500/30',
-      features: ['User Management', 'Real-Time Audit Logs', 'Institutional Metrics', 'Access Governance'],
-    },
+  const configs: Record<UserRole, { title: string; subtitle: string; fieldLabel: string; placeholder: string; icon: any; defaultUser: string; color: string; bg: string; features: string[] }> = {
+    STUDENT:   { title: 'Student Portal Sign In',       subtitle: 'Browse events, generate QR passes, download certificates', fieldLabel: 'College Email / Roll Number', placeholder: 'student@college.edu or 21CS042', icon: GraduationCap, defaultUser: '21CS042',              color: '#0284c7', bg: 'rgba(2,132,199,0.10)',   features: ['Event Registration','Dynamic QR Badges','Live Schedules','E-Certificates'] },
+    ORGANISER: { title: 'Organiser Control Center',     subtitle: 'Create events, generate AI agendas, manage jury panels',  fieldLabel: 'Faculty Email / Organiser ID', placeholder: 'organiser@college.edu',      icon: Calendar,      defaultUser: 'organiser@college.edu', color: '#4f46e5', bg: 'rgba(79,70,229,0.10)',  features: ['AI Agenda Scheduling','Smart Form Builder','Panel Allocation','Live Tracking'] },
+    VOLUNTEER: { title: 'Volunteer Operations Hub',     subtitle: 'Fast QR scanning, attendance check-ins, round monitoring',fieldLabel: 'Volunteer Email / Roll No',    placeholder: 'volunteer@college.edu',      icon: UserCheck,     defaultUser: 'volunteer@college.edu', color: '#059669', bg: 'rgba(5,150,105,0.10)',  features: ['QR Scanner','Arrival Logging','Roster View','Round Updates'] },
+    ADMIN:     { title: 'Institutional Administration', subtitle: 'System auditing, quota governance, access control',       fieldLabel: 'Administrator ID / Email',    placeholder: 'ADM-101 or admin@college.edu',icon: Shield,       defaultUser: 'ADM-101',              color: '#d97706', bg: 'rgba(217,119,6,0.10)',  features: ['User Management','Audit Logs','Metrics','Access Control'] },
   };
 
-  const currentConfig = roleConfigs[selectedRole];
-
-  const handleRoleTabChange = (role: UserRole) => {
-    setSelectedRole(role);
-    setIdentifier('');
-    setError(null);
-    setShowForgotPassword(false);
+  const quickNames: Record<UserRole, string> = {
+    STUDENT: 'Rahul K • 21CS042', ORGANISER: 'Prof. Rajesh • CSE Lead',
+    VOLUNTEER: 'Priya V • QR Lead', ADMIN: 'Dr. Vance • Dean',
   };
+  const quickEmoji: Record<UserRole, string> = { STUDENT: '🎓', ORGANISER: '📅', VOLUNTEER: '🤝', ADMIN: '🛡️' };
 
-  const handleDirectQuickLogin = (role: UserRole) => {
-    switchDemoRole(role);
-    onSuccess(role);
-    onClose();
-  };
+  const cfg = configs[selectedRole];
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    const input = identifier.trim() || currentConfig.defaultUser;
-    const ok = login(input, selectedRole);
-
-    if (ok) {
-      onSuccess(selectedRole);
-      onClose();
-    } else {
-      // Fallback to demo switch if custom id wasn't typed exactly
-      switchDemoRole(selectedRole);
-      onSuccess(selectedRole);
-      onClose();
-    }
+    e.preventDefault(); setError(null);
+    const input = identifier.trim() || cfg.defaultUser;
+    login(input, selectedRole) || switchDemoRole(selectedRole);
+    onSuccess(selectedRole); onClose();
   };
 
-  const handleForgotSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!forgotEmail.trim()) return;
+  const handleForgot = (e: React.FormEvent) => {
+    e.preventDefault(); if (!forgotEmail.trim()) return;
     setForgotSuccess(true);
-    setTimeout(() => {
-      setForgotSuccess(false);
-      setShowForgotPassword(false);
-      setForgotEmail('');
-    }, 2500);
+    setTimeout(() => { setForgotSuccess(false); setShowForgot(false); setForgotEmail(''); }, 2500);
+  };
+
+  /* ── Styles ── */
+  const modalBg   = isDark ? '#0f172a' : '#ffffff';
+  const headerBg  = isDark ? 'rgba(8,12,20,0.7)' : 'rgba(239,246,255,0.8)';
+  const border    = isDark ? 'rgba(99,179,237,0.12)' : 'rgba(37,99,235,0.10)';
+  const inputBg   = isDark ? 'rgba(17,24,39,0.8)'   : 'rgba(239,246,255,0.7)';
+  const inputBorder = isDark ? 'rgba(99,179,237,0.18)' : 'rgba(37,99,235,0.18)';
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '11px 11px 11px 38px',
+    borderRadius: '12px', border: `1.5px solid ${inputBorder}`,
+    background: inputBg, color: 'var(--text-primary)',
+    fontSize: '13px', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s',
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col">
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors z-10"
-        >
-          <X className="w-5 h-5" />
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '16px',
+        background: isDark ? 'rgba(0,0,0,0.80)' : 'rgba(15,23,42,0.60)',
+        backdropFilter: 'blur(14px)',
+        animation: 'fadeIn 0.2s ease',
+      }}
+    >
+      <div
+        style={{
+          width: '100%', maxWidth: '520px',
+          background: modalBg, borderRadius: '28px',
+          border: `1px solid ${border}`,
+          boxShadow: isDark
+            ? '0 30px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,179,237,0.05)'
+            : '0 30px 80px rgba(37,99,235,0.16)',
+          overflow: 'hidden', maxHeight: '90vh',
+          display: 'flex', flexDirection: 'column',
+          animation: 'scaleIn 0.25s ease',
+        }}
+      >
+        {/* Close */}
+        <button onClick={onClose} style={{
+          position: 'absolute', top: '16px', right: '16px', zIndex: 10,
+          width: '32px', height: '32px', borderRadius: '10px', border: `1px solid ${border}`,
+          background: isDark ? 'rgba(17,24,39,0.8)' : 'rgba(239,246,255,0.9)',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--text-muted)',
+        }}>
+          <X style={{ width: '15px', height: '15px' }} />
         </button>
 
-        {/* Modal Header */}
-        <div className="p-6 pb-4 border-b border-slate-800 bg-slate-950/60">
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-7 h-7 rounded-lg bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
+        {/* Header */}
+        <div style={{ padding: '24px 24px 20px', borderBottom: `1px solid ${border}`, background: headerBg }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <div style={{ width: '28px', height: '28px', borderRadius: '9px', background: 'linear-gradient(135deg,#1d4ed8,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Sparkles style={{ width: '14px', height: '14px', color: '#fff' }} />
             </div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">
+            <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#2563eb' }}>
               Role-Based Authentication
             </span>
           </div>
-          <h2 className="text-xl font-display font-bold text-slate-100">{currentConfig.title}</h2>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            {currentConfig.subtitle}
+          <h2 style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: '19px', color: 'var(--text-primary)', margin: '0 0 6px' }}>
+            {cfg.title}
+          </h2>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.6 }}>
+            {cfg.subtitle}
           </p>
 
-          {/* Primary 4 Role Choices Bar */}
-          <div className="grid grid-cols-4 gap-1.5 mt-4 p-1.5 bg-slate-950 rounded-xl border border-slate-800">
-            {(['STUDENT', 'ORGANISER', 'VOLUNTEER', 'ADMIN'] as UserRole[]).map((r) => {
-              const cfg = roleConfigs[r];
-              const Icon = cfg.icon;
-              const isSelected = selectedRole === r;
+          {/* Role Tabs */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px',
+            padding: '5px', borderRadius: '14px',
+            background: isDark ? 'rgba(8,12,20,0.6)' : 'rgba(255,255,255,0.7)',
+            border: `1px solid ${border}`,
+          }}>
+            {(['STUDENT','ORGANISER','VOLUNTEER','ADMIN'] as UserRole[]).map((r) => {
+              const c = configs[r]; const Icon = c.icon; const sel = selectedRole === r;
               return (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => handleRoleTabChange(r)}
-                  className={`flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-lg text-xs font-bold transition-all ${
-                    isSelected
-                      ? `${cfg.bg} text-white shadow-lg`
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                  }`}
+                <button key={r} type="button"
+                  onClick={() => { setSelectedRole(r); setIdentifier(''); setError(null); setShowForgot(false); }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px',
+                    padding: '10px 4px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                    background: sel ? c.color : 'transparent',
+                    color: sel ? '#fff' : 'var(--text-muted)',
+                    fontSize: '11px', fontWeight: 700, transition: 'all 0.2s',
+                    boxShadow: sel ? `0 3px 10px ${c.color}45` : 'none',
+                  }}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span className="text-[11px] tracking-tight">
+                  <Icon style={{ width: '16px', height: '16px' }} />
+                  <span style={{ fontSize: '10px', lineHeight: 1 }}>
                     {r === 'ORGANISER' ? 'Organiser' : r === 'VOLUNTEER' ? 'Volunteer' : r === 'STUDENT' ? 'Student' : 'Admin'}
                   </span>
                 </button>
@@ -225,207 +172,165 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-5">
+        {/* Body */}
+        <div style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Error */}
           {error && (
-            <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{error}</span>
+            <div style={{ padding: '12px 14px', borderRadius: '12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertCircle style={{ width: '14px', height: '14px', flexShrink: 0 }} />
+              {error}
             </div>
           )}
 
-          {/* Role Feature Highlights */}
-          <div className={`p-3.5 rounded-xl border bg-gradient-to-r ${currentConfig.gradient}`}>
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2">
-                <currentConfig.icon className={`w-4 h-4 ${currentConfig.color}`} />
-                <span className="text-xs font-bold text-slate-200">
-                  Target Dashboard: {selectedRole.charAt(0) + selectedRole.slice(1).toLowerCase()}
+          {/* Role Highlights */}
+          <div style={{ padding: '14px 16px', borderRadius: '16px', background: isDark ? cfg.bg.replace('0.10', '0.15') : cfg.bg, border: `1px solid ${cfg.color}28` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <cfg.icon style={{ width: '14px', height: '14px', color: cfg.color }} />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Target: {selectedRole.charAt(0) + selectedRole.slice(1).toLowerCase()} Dashboard
                 </span>
               </div>
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${currentConfig.badgeColor}`}>
+              <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 9px', borderRadius: '99px', background: `${cfg.color}18`, border: `1px solid ${cfg.color}30`, color: cfg.color }}>
                 Active Role
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
-              {currentConfig.features.map((feat, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-                  <span className="truncate">{feat}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+              {cfg.features.map((feat, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <CheckCircle2 style={{ width: '12px', height: '12px', color: '#2563eb', flexShrink: 0 }} />
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{feat}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {!showForgotPassword ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Form */}
+          {!showForgot ? (
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Identifier */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  {currentConfig.fieldLabel}
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="text"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder={currentConfig.fieldPlaceholder}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>{cfg.fieldLabel}</label>
+                <div style={{ position: 'relative' }}>
+                  <Mail style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', width: '15px', height: '15px', color: 'var(--text-subtle)' }} />
+                  <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder={cfg.placeholder} style={inputStyle}
+                    onFocus={(e) => (e.target.style.borderColor = '#2563eb')} onBlur={(e) => (e.target.style.borderColor = inputBorder)} />
                 </div>
               </div>
 
+              {/* Password */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Password</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotPassword(true)}
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 hover:underline"
-                  >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Password</label>
+                  <button type="button" onClick={() => setShowForgot(true)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '11px', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
                     Forgot password?
                   </button>
                 </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full pl-9 pr-10 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <div style={{ position: 'relative' }}>
+                  <Lock style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', width: '15px', height: '15px', color: 'var(--text-subtle)' }} />
+                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••" style={{ ...inputStyle, paddingRight: '40px' }}
+                    onFocus={(e) => (e.target.style.borderColor = '#2563eb')} onBlur={(e) => (e.target.style.borderColor = inputBorder)} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '11px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-subtle)', padding: 0 }}>
+                    {showPassword ? <EyeOff style={{ width: '14px', height: '14px' }} /> : <Eye style={{ width: '14px', height: '14px' }} />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0"
-                  />
-                  <span>Remember me on this device</span>
-                </label>
-              </div>
+              {/* Remember */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} style={{ accentColor: '#2563eb', width: '14px', height: '14px' }} />
+                Remember me on this device
+              </label>
 
-              {/* Instant Action Button */}
-              <button
-                type="submit"
-                className={`w-full py-3 rounded-xl font-bold text-xs text-white shadow-lg transition-all flex items-center justify-center gap-2 ${currentConfig.bg} cursor-pointer`}
+              {/* Submit */}
+              <button type="submit" style={{
+                width: '100%', padding: '13px 16px', borderRadius: '14px', border: 'none', cursor: 'pointer',
+                background: `linear-gradient(135deg,${cfg.color},${cfg.color}cc)`,
+                color: '#fff', fontSize: '13px', fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                boxShadow: `0 4px 16px ${cfg.color}40`, transition: 'all 0.2s',
+              }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 22px ${cfg.color}55`; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 16px ${cfg.color}40`; }}
               >
-                <span>Enter {selectedRole.charAt(0) + selectedRole.slice(1).toLowerCase()} Dashboard</span>
-                <ArrowRight className="w-4 h-4" />
+                Enter {selectedRole.charAt(0) + selectedRole.slice(1).toLowerCase()} Dashboard
+                <ArrowRight style={{ width: '14px', height: '14px' }} />
               </button>
             </form>
           ) : (
-            <form onSubmit={handleForgotSubmit} className="space-y-4">
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300">
-                Enter your institutional email ID to receive a secure password recovery link.
+            <form onSubmit={handleForgot} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ padding: '12px 14px', borderRadius: '12px', background: isDark ? 'rgba(17,24,39,0.6)' : 'rgba(239,246,255,0.8)', border: `1px solid ${border}`, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Enter your institutional email to receive a secure password recovery link.
               </div>
-
               {forgotSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Password recovery link sent successfully to {forgotEmail}!</span>
+                <div style={{ padding: '12px 14px', borderRadius: '12px', background: 'rgba(5,150,105,0.08)', border: '1px solid rgba(5,150,105,0.25)', color: '#059669', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 style={{ width: '14px', height: '14px' }} />
+                  Recovery link sent to {forgotEmail}!
                 </div>
               )}
-
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Address</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="email"
-                    required
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    placeholder="your.email@college.edu"
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                  />
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Email Address</label>
+                <div style={{ position: 'relative' }}>
+                  <Mail style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', width: '15px', height: '15px', color: 'var(--text-subtle)' }} />
+                  <input type="email" required value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} placeholder="your.email@college.edu" style={inputStyle}
+                    onFocus={(e) => (e.target.style.borderColor = '#2563eb')} onBlur={(e) => (e.target.style.borderColor = inputBorder)} />
                 </div>
               </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPassword(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-700 text-xs font-medium text-slate-300 hover:bg-slate-800"
-                >
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="button" onClick={() => setShowForgot(false)} style={{ flex: 1, padding: '11px', borderRadius: '12px', border: `1px solid ${border}`, background: isDark ? 'rgba(17,24,39,0.6)' : 'rgba(239,246,255,0.8)', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
                   Back to Sign In
                 </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-md"
-                >
+                <button type="submit" style={{ flex: 1, padding: '11px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg,#1d4ed8,#2563eb)', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 3px 10px rgba(37,99,235,0.35)' }}>
                   Send Reset Link
                 </button>
               </div>
             </form>
           )}
 
-          {/* 1-Click Direct Launch Bar for all 4 roles */}
-          <div className="pt-4 border-t border-slate-800">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>One-Click Instant Dashboard Launch</span>
+          {/* Quick Launch */}
+          <div style={{ paddingTop: '16px', borderTop: `1px solid ${border}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+              <Zap style={{ width: '13px', height: '13px', color: '#f59e0b' }} />
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
+                One-Click Instant Launch
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleDirectQuickLogin('STUDENT')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-sky-950/40 border border-slate-800 hover:border-sky-500/40 text-left text-xs transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sky-400 group-hover:text-sky-300">🎓 Student</span>
-                  <ArrowRight className="w-3 h-3 text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">Rahul K • 21CS042</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDirectQuickLogin('ORGANISER')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-indigo-950/40 border border-slate-800 hover:border-indigo-500/40 text-left text-xs transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-indigo-400 group-hover:text-indigo-300">📅 Organiser</span>
-                  <ArrowRight className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">Prof. Rajesh • CSE Lead</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDirectQuickLogin('VOLUNTEER')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-emerald-950/40 border border-slate-800 hover:border-emerald-500/40 text-left text-xs transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-400 group-hover:text-emerald-300">🤝 Volunteer</span>
-                  <ArrowRight className="w-3 h-3 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">Priya V • QR Lead</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDirectQuickLogin('ADMIN')}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-amber-950/40 border border-slate-800 hover:border-amber-500/40 text-left text-xs transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-amber-400 group-hover:text-amber-300">🛡️ Admin</span>
-                  <ArrowRight className="w-3 h-3 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">Dr. Vance • Dean</div>
-              </button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {(['STUDENT','ORGANISER','VOLUNTEER','ADMIN'] as UserRole[]).map((r) => {
+                const c = configs[r];
+                return (
+                  <button key={r} type="button"
+                    onClick={() => { switchDemoRole(r); onSuccess(r); onClose(); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      padding: '10px 12px', borderRadius: '12px',
+                      border: `1px solid ${border}`,
+                      background: isDark ? 'rgba(8,12,20,0.6)' : 'rgba(239,246,255,0.7)',
+                      cursor: 'pointer', transition: 'all 0.2s',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = isDark ? c.bg : c.bg;
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = `${c.color}50`;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = isDark ? 'rgba(8,12,20,0.6)' : 'rgba(239,246,255,0.7)';
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = border;
+                    }}
+                  >
+                    <span style={{ fontSize: '16px', lineHeight: 1 }}>{quickEmoji[r]}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: c.color, lineHeight: 1.2 }}>
+                        {r.charAt(0) + r.slice(1).toLowerCase()}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {quickNames[r]}
+                      </div>
+                    </div>
+                    <ChevronRight style={{ width: '12px', height: '12px', color: c.color, opacity: 0.6, flexShrink: 0 }} />
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -433,4 +338,3 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     </div>
   );
 };
-

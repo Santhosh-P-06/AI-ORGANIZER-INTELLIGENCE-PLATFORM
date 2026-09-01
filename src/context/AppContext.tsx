@@ -1,3 +1,5 @@
+'use client';
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   User,
@@ -114,41 +116,43 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+function readStoredValue<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') {
+    return fallback;
+  }
+
+  const saved = window.localStorage.getItem(key);
+  return saved ? JSON.parse(saved) : fallback;
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load from local storage or fallback to defaults
   const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('ai_event_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    return readStoredValue('ai_event_users', INITIAL_USERS);
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('ai_event_current_user');
-    return saved ? JSON.parse(saved) : null;
+    return readStoredValue('ai_event_current_user', null);
   });
 
   const [events, setEvents] = useState<EventItem[]>(() => {
-    const saved = localStorage.getItem('ai_event_events');
-    return saved ? JSON.parse(saved) : INITIAL_EVENTS;
+    return readStoredValue('ai_event_events', INITIAL_EVENTS);
   });
 
   const [registrations, setRegistrations] = useState<Registration[]>(() => {
-    const saved = localStorage.getItem('ai_event_registrations');
-    return saved ? JSON.parse(saved) : INITIAL_REGISTRATIONS;
+    return readStoredValue('ai_event_registrations', INITIAL_REGISTRATIONS);
   });
 
   const [certificates, setCertificates] = useState<Certificate[]>(() => {
-    const saved = localStorage.getItem('ai_event_certificates');
-    return saved ? JSON.parse(saved) : INITIAL_CERTIFICATES;
+    return readStoredValue('ai_event_certificates', INITIAL_CERTIFICATES);
   });
 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    const saved = localStorage.getItem('ai_event_audit_logs');
-    return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
+    return readStoredValue('ai_event_audit_logs', INITIAL_AUDIT_LOGS);
   });
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    const saved = localStorage.getItem('ai_event_notifications');
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    return readStoredValue('ai_event_notifications', INITIAL_NOTIFICATIONS);
   });
 
   const [activeEventId, setActiveEventId] = useState<string>('evt_technohack_2026');
@@ -542,6 +546,400 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }));
     addAuditLog('Manual Attendance Toggled', `Marked reg ${regId} as ${attended ? 'Present' : 'Absent'}`, 'ATTENDANCE');
+  };
+
+
+  const addDemoRegistration = (eventId: string): Registration => {
+    const newRegistration: Registration = {
+      id: `reg_demo_${Date.now()}`,
+      eventId,
+      studentId: `stu_demo_${Date.now()}`,
+      studentName: 'Demo Student',
+      rollNumber: `DEMO${Math.floor(1000 + Math.random() * 9000)}`,
+      email: 'demo.student@college.edu',
+      phone: '+91 90000 00000',
+      department: 'Computer Science & Engineering',
+      year: '3rd Year (Junior)',
+      section: 'Sec-A',
+      college: 'National Institute of Engineering & Technology',
+      teamName: 'Demo Team',
+      customResponses: {},
+      registeredAt: new Date().toISOString(),
+      status: 'CONFIRMED',
+      qrCodeData: `NIET:EVT:${eventId}:DEMO:${Date.now()}`,
+      attendance: { attended: false, arrivalStatus: 'ON_TIME' },
+      roundTracking: {
+        registered: true,
+        attended: false,
+        round1Completed: false,
+        round2Completed: false,
+        finalPresentation: false,
+        participated: false,
+        winnerStatus: 'NONE',
+      },
+      certificateStatus: 'NOT_ELIGIBLE',
+    };
+    setRegistrations(prev => [newRegistration, ...prev]);
+    addAuditLog('Demo Registration Added', `Added demo registration for event ${eventId}`, 'EVENT');
+    return newRegistration;
+  };
+
+  const markParticipantAttendance = (regId: string, status: AttendanceStatus, memberId?: string, notes?: string) => {
+    const attended = status === 'PRESENT' || status === 'LATE';
+    setRegistrations(prev => prev.map(registration => {
+      if (registration.id !== regId) return registration;
+      
+      const targetEvent = events.find(e => e.id === registration.eventId);
+      const minTeamSize = targetEvent?.teamSizeMin || 1;
+
+      // Update membersList if memberId provided, or update all active members if no memberId
+      let updatedMembers = registration.membersList;
+      if (updatedMembers && updatedMembers.length > 0) {
+        if (memberId) {
+          updatedMembers = updatedMembers.map(member => {
+            if (member.id === memberId) {
+              return {
+                ...member,
+                attendanceStatus: status,
+                attendanceNotes: notes || member.attendanceNotes,
+                attendanceTimestamp: attended ? new Date().toISOString() : member.attendanceTimestamp,
+                isActive: status !== 'REPLACED' && status !== 'WITHDRAWN',
+              };
+            }
+            return member;
+          });
+        } else {
+          updatedMembers = updatedMembers.map(member => {
+            if (member.attendanceStatus === 'REPLACED') return member; // keep replaced status intact
+            return {
+              ...member,
+              attendanceStatus: status,
+              attendanceNotes: notes || member.attendanceNotes,
+              attendanceTimestamp: attended ? new Date().toISOString() : member.attendanceTimestamp,
+              isActive: status !== 'REPLACED' && status !== 'WITHDRAWN',
+            };
+          });
+        }
+      }
+
+      // Compute team statistics
+      const activeMembers = updatedMembers ? updatedMembers.filter(m => m.attendanceStatus !== 'REPLACED' && m.attendanceStatus !== 'WITHDRAWN') : [];
+      const presentMembers = activeMembers.filter(m => m.attendanceStatus === 'PRESENT' || m.attendanceStatus === 'LATE');
+      const attendancePercent = activeMembers.length > 0
+        ? Math.round((presentMembers.length / activeMembers.length) * 100)
+        : (attended ? 100 : 0);
+
+      // Determine team eligibility
+      let eligibility: Registration['teamEligibility'] = 'ELIGIBLE';
+      if (activeMembers.length > 1) {
+        if (presentMembers.length >= minTeamSize) {
+          eligibility = 'ELIGIBLE';
+        } else if (presentMembers.length > 0 && presentMembers.length < minTeamSize) {
+          eligibility = 'INCOMPLETE_TEAM';
+        } else {
+          eligibility = 'DISQUALIFIED_ABSENT';
+        }
+      } else {
+        eligibility = attended ? 'ELIGIBLE' : 'DISQUALIFIED_ABSENT';
+      }
+
+      // If at least one member is present/late, overall registration is considered attended
+      const hasAnyPresent = updatedMembers && updatedMembers.length > 0
+        ? presentMembers.length > 0
+        : attended;
+
+      const actorName = currentUser?.name || 'Staff';
+      const actorRole = currentRole;
+
+      return {
+        ...registration,
+        membersList: updatedMembers,
+        overallAttendancePercentage: attendancePercent,
+        teamEligibility: eligibility,
+        attendance: {
+          attended: hasAnyPresent,
+          timestamp: hasAnyPresent ? (registration.attendance?.timestamp || new Date().toISOString()) : undefined,
+          volunteerId: currentUser?.id,
+          volunteerName: `${actorName} (${actorRole})`,
+          arrivalStatus: status === 'LATE' ? 'LATE' : 'ON_TIME',
+          status,
+        },
+        roundTracking: {
+          ...registration.roundTracking,
+          attended: hasAnyPresent,
+          participated: hasAnyPresent || registration.roundTracking.participated,
+        },
+        certificateStatus: hasAnyPresent && attendancePercent >= 75 ? 'ELIGIBLE' : 'NOT_ELIGIBLE',
+      };
+    }));
+
+    addAuditLog(
+      'Participant Attendance Updated',
+      `Marked ${status} for registration ${regId}${memberId ? ` (Member ID: ${memberId})` : ''} with note "${notes || 'Normal check-in'}"`,
+      'ATTENDANCE'
+    );
+  };
+
+  const replaceTeamMember = (
+    regId: string,
+    originalMemberId: string,
+    newMember: {
+      name: string;
+      rollNumber: string;
+      email: string;
+      phone?: string;
+      department?: string;
+      year?: string;
+      section?: string;
+    },
+    reason: string
+  ) => {
+    const registration = registrations.find(item => item.id === regId);
+    const original = registration?.membersList?.find(member => member.id === originalMemberId);
+    if (!registration || !original) {
+      return { success: false, message: 'Original team member not found in registration record.' };
+    }
+
+    const replacementId = `tm_repl_${Date.now()}`;
+    const replacedAt = new Date().toISOString();
+    const actorName = currentUser?.name || 'Organiser';
+    const actorRole = currentRole;
+
+    const replacementRecord: MemberReplacementRecord = {
+      id: `rep_hist_${Date.now()}`,
+      registrationId: registration.id,
+      eventId: registration.eventId,
+      teamName: registration.teamName || registration.studentName,
+      originalMember: {
+        id: original.id,
+        name: original.name,
+        rollNumber: original.rollNumber,
+        email: original.email,
+        phone: original.phone,
+        department: original.department,
+      },
+      newMember: {
+        id: replacementId,
+        name: newMember.name,
+        rollNumber: newMember.rollNumber,
+        email: newMember.email,
+        phone: newMember.phone,
+        department: newMember.department,
+        year: newMember.year,
+        section: newMember.section,
+      },
+      replacedAt,
+      replacedByActorName: actorName,
+      replacedByActorRole: actorRole,
+      reason,
+    };
+
+    const targetEvent = events.find(e => e.id === registration.eventId);
+    const minTeamSize = targetEvent?.teamSizeMin || 1;
+
+    setRegistrations(prev => prev.map(item => {
+      if (item.id !== regId) return item;
+
+      // Update members list: deactivate original, add replacement as active & present
+      const updatedMembers: TeamMember[] = [
+        ...(item.membersList || []).map(member => {
+          if (member.id === originalMemberId) {
+            return {
+              ...member,
+              attendanceStatus: 'REPLACED' as const,
+              attendanceNotes: `Replaced by ${newMember.name} (${newMember.rollNumber}). Reason: ${reason}`,
+              isActive: false,
+              replacementInfo: {
+                replacedByMemberId: replacementId,
+                replacedByName: newMember.name,
+                replacedByEmail: newMember.email,
+                replacedAt,
+                replacedByActorName: actorName,
+                replacedByActorRole: actorRole,
+                reason,
+              },
+            };
+          }
+          return member;
+        }),
+        {
+          id: replacementId,
+          name: newMember.name,
+          rollNumber: newMember.rollNumber,
+          email: newMember.email,
+          phone: newMember.phone,
+          department: newMember.department || original.department,
+          year: newMember.year || original.year,
+          section: newMember.section || original.section,
+          isLead: original.isLead,
+          attendanceStatus: 'PRESENT' as const,
+          attendanceTimestamp: replacedAt,
+          attendanceNotes: `Official Replacement for ${original.name} (${original.rollNumber})`,
+          isActive: true,
+          isReplacementMember: true,
+          replacedOriginalMemberName: original.name,
+          replacedOriginalMemberRoll: original.rollNumber,
+        },
+      ];
+
+      // Re-calculate eligibility & attendance
+      const activeMembers = updatedMembers.filter(m => m.attendanceStatus !== 'REPLACED' && m.attendanceStatus !== 'WITHDRAWN');
+      const presentMembers = activeMembers.filter(m => m.attendanceStatus === 'PRESENT' || m.attendanceStatus === 'LATE');
+      const attendancePercent = activeMembers.length > 0
+        ? Math.round((presentMembers.length / activeMembers.length) * 100)
+        : 100;
+
+      let eligibility: Registration['teamEligibility'] = 'ELIGIBLE';
+      if (activeMembers.length > 1) {
+        eligibility = presentMembers.length >= minTeamSize ? 'ELIGIBLE' : 'INCOMPLETE_TEAM';
+      } else {
+        eligibility = 'ELIGIBLE';
+      }
+
+      // If original was lead, update main studentName / email to replacement
+      const isLeadReplaced = original.isLead || item.email.toLowerCase() === original.email.toLowerCase();
+
+      return {
+        ...item,
+        studentName: isLeadReplaced ? newMember.name : item.studentName,
+        rollNumber: isLeadReplaced ? newMember.rollNumber : item.rollNumber,
+        email: isLeadReplaced ? newMember.email : item.email,
+        phone: isLeadReplaced && newMember.phone ? newMember.phone : item.phone,
+        membersList: updatedMembers,
+        teamMembers: updatedMembers.filter(m => m.isActive).map(m => `${m.name} (${m.rollNumber})`),
+        overallAttendancePercentage: attendancePercent,
+        teamEligibility: eligibility,
+        replacementHistory: [replacementRecord, ...(item.replacementHistory || [])],
+        attendance: {
+          attended: true,
+          timestamp: replacedAt,
+          volunteerName: `${actorName} (${actorRole})`,
+          arrivalStatus: 'ON_TIME',
+          status: 'PRESENT',
+        },
+        certificateStatus: 'ELIGIBLE',
+      };
+    }));
+
+    // Notify the newly active member
+    const newMemberNotif: NotificationItem = {
+      id: `notif_rep_new_${Date.now()}`,
+      userId: replacementId,
+      targetRole: 'STUDENT',
+      eventId: registration.eventId,
+      title: 'Added to Event Team Roster 🎉',
+      message: `You have been added as an active member in Team "${registration.teamName || 'Squad'}" for ${targetEvent?.title || 'the event'}. Your credentials and schedule are now active.`,
+      type: 'SUCCESS',
+      timestamp: new Date().toISOString(),
+      read: false,
+    };
+    setNotifications(prev => [newMemberNotif, ...prev]);
+
+    addAuditLog(
+      'Team Member Replaced',
+      `Replaced ${original.name} (${original.rollNumber}) with ${newMember.name} (${newMember.rollNumber}) in Team "${registration.teamName || registration.studentName}". Reason: ${reason}`,
+      'ATTENDANCE'
+    );
+
+    return {
+      success: true,
+      message: `✅ Member Replaced: ${newMember.name} (${newMember.rollNumber}) is now active. Notifications and certificates routed to new member.`,
+    };
+  };
+
+  const finalizeActiveRoster = (eventId: string) => {
+    const targetEvent = events.find(e => e.id === eventId);
+    const eventRegistrations = registrations.filter(r => r.eventId === eventId);
+    
+    // Count stats
+    const activePresentRegs = eventRegistrations.filter(r => r.attendance?.attended);
+    const absentRegs = eventRegistrations.filter(r => !r.attendance?.attended);
+    const incompleteTeams = eventRegistrations.filter(r => r.teamEligibility === 'INCOMPLETE_TEAM');
+    const totalReplacements = eventRegistrations.reduce((acc, r) => acc + (r.replacementHistory?.length || 0), 0);
+
+    const finalizedAt = new Date().toISOString();
+    const actorName = currentUser?.name || 'Organiser Lead';
+
+    // Update event state
+    setEvents(prev => prev.map(e => e.id === eventId ? {
+      ...e,
+      isRosterFinalized: true,
+      rosterFinalizedAt: finalizedAt,
+      rosterFinalizedBy: actorName,
+    } : e));
+
+    // Send broadcast notification to event coordinators
+    const finalizeNotif: NotificationItem = {
+      id: `notif_roster_fin_${Date.now()}`,
+      targetRole: 'ALL',
+      eventId,
+      title: 'Active Participant Roster Finalized 📋',
+      message: `Active roster locked with ${activePresentRegs.length} verified attendees (${totalReplacements} substitutions processed). Evaluation panels and schedules refreshed.`,
+      type: 'INFO',
+      timestamp: finalizedAt,
+      read: false,
+    };
+    setNotifications(prev => [finalizeNotif, ...prev]);
+
+    addAuditLog(
+      'Active Roster Finalized',
+      `Locked active participant roster for "${targetEvent?.title || eventId}" with ${activePresentRegs.length} present, ${absentRegs.length} absent, ${incompleteTeams.length} incomplete teams, and ${totalReplacements} member replacements.`,
+      'ATTENDANCE'
+    );
+
+    return {
+      success: true,
+      message: `Active roster finalized: ${activePresentRegs.length} present participants confirmed for evaluation.`,
+      activeCount: activePresentRegs.length,
+      incompleteCount: incompleteTeams.length,
+    };
+  };
+
+  const unfinalizeActiveRoster = (eventId: string) => {
+    setEvents(prev => prev.map(e => e.id === eventId ? {
+      ...e,
+      isRosterFinalized: false,
+      rosterFinalizedAt: undefined,
+      rosterFinalizedBy: undefined,
+    } : e));
+
+    addAuditLog(
+      'Active Roster Reopened',
+      `Reopened participant roster for event ${eventId} for attendance and substitution edits.`,
+      'ATTENDANCE'
+    );
+  };
+
+  const sendAbsenceAlerts = (eventId: string) => {
+    const targetEvent = events.find(e => e.id === eventId);
+    const absentRegistrations = registrations.filter(r => r.eventId === eventId && !r.attendance?.attended);
+    
+    const alerts: NotificationItem[] = absentRegistrations.map(r => ({
+      id: `notif_absent_${Date.now()}_${r.id}`,
+      userId: r.studentId,
+      targetRole: 'STUDENT' as const,
+      eventId,
+      title: 'Attendance Action Required: Pending Check-in ⚠️',
+      message: `You have not yet reported to the registration desk for "${targetEvent?.title || 'your event'}". Please report immediately to prevent squad disqualification.`,
+      type: 'WARNING' as const,
+      timestamp: new Date().toISOString(),
+      read: false,
+    }));
+
+    if (alerts.length > 0) {
+      setNotifications(prev => [...alerts, ...prev]);
+    }
+
+    addAuditLog(
+      'Absence Alerts Sent',
+      `Dispatched urgent attendance notifications to ${alerts.length} absent registered students for event ${eventId}`,
+      'ATTENDANCE'
+    );
+
+    return {
+      sentCount: alerts.length,
+      message: `Sent urgent attendance alerts to ${alerts.length} absent participants.`,
+    };
   };
 
   // Round Tracking & Winners
@@ -1069,8 +1467,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateCertificateTemplate,
         registerStudent,
         updateRegistrationStatus,
+        addDemoRegistration,
         recordQRAttendance,
         recordManualAttendance,
+        markParticipantAttendance,
+        replaceTeamMember,
+        finalizeActiveRoster,
+        unfinalizeActiveRoster,
+        sendAbsenceAlerts,
         updateRoundTracking,
         setTeamWinnerStatus,
         publishEventResults,
@@ -1102,3 +1506,4 @@ export const useApp = () => {
   }
   return context;
 };
+

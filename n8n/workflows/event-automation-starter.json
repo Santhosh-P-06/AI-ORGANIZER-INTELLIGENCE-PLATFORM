@@ -1,0 +1,146 @@
+{
+  "name": "AI Event Organiser - Automation Starter",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-event-registration-created",
+        "responseMode": "responseNode"
+      },
+      "id": "registration-webhook",
+      "name": "Registration Created Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.APP_URL}}/api/n8n/webhook/registration.created",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-secret",
+              "value": "={{$env.N8N_WEBHOOK_SECRET}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify($json)}}"
+      },
+      "id": "send-registration-to-platform",
+      "name": "Send Registration To Platform",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, message: 'Registration automation accepted', platformReceipt: $json } }}"
+      },
+      "id": "registration-response",
+      "name": "Registration Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-event-certificate-generated",
+        "responseMode": "responseNode"
+      },
+      "id": "certificate-webhook",
+      "name": "Certificate Generated Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.APP_URL}}/api/n8n/webhook/certificate.generated",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-secret",
+              "value": "={{$env.N8N_WEBHOOK_SECRET}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify($json)}}"
+      },
+      "id": "send-certificate-to-platform",
+      "name": "Send Certificate To Platform",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, message: 'Certificate automation accepted', platformReceipt: $json } }}"
+      },
+      "id": "certificate-response",
+      "name": "Certificate Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [520, 220]
+    }
+  ],
+  "connections": {
+    "Registration Created Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send Registration To Platform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Registration To Platform": {
+      "main": [
+        [
+          {
+            "node": "Registration Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Certificate Generated Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send Certificate To Platform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Certificate To Platform": {
+      "main": [
+        [
+          {
+            "node": "Certificate Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

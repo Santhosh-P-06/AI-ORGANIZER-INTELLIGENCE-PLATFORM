@@ -1,6 +1,9 @@
+'use client';
+
 import React, { useState } from 'react';
 import { useApp } from '../../../context/AppContext';
-import { Registration, EventItem } from '../../../types';
+import { useTheme } from '../../../context/ThemeContext';
+import { Registration, EventItem, AttendanceStatus, TeamMember, MemberReplacementRecord } from '../../../types';
 import {
   Search,
   Filter,
@@ -17,18 +20,63 @@ import {
   ExternalLink,
   ChevronRight,
   UserCheck,
+  UserPlus,
+  AlertTriangle,
+  History,
+  Lock,
+  Unlock,
+  Bell,
+  Check,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 interface RegistrationManagerProps {
   event: EventItem;
 }
 
 export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event }) => {
-  const { registrations, updateRegistrationStatus } = useApp();
+  const {
+    registrations,
+    updateRegistrationStatus,
+    markParticipantAttendance,
+    replaceTeamMember,
+    finalizeActiveRoster,
+    unfinalizeActiveRoster,
+    sendAbsenceAlerts,
+  } = useApp();
+
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [attendanceFilter, setAttendanceFilter] = useState<string>('ALL');
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
   const [selectedReg, setSelectedReg] = useState<Registration | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
+  // Member Replacement Modal State
+  const [replacingReg, setReplacingReg] = useState<Registration | null>(null);
+  const [replacingMember, setReplacingMember] = useState<TeamMember | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newRoll, setNewRoll] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newDept, setNewDept] = useState('');
+  const [newYear, setNewYear] = useState('3rd Year (Junior)');
+  const [newSection, setNewSection] = useState('Sec-A');
+  const [replaceReason, setReplaceReason] = useState('');
+  const [replaceError, setReplaceError] = useState<string | null>(null);
+  const [replaceSuccess, setReplaceSuccess] = useState<string | null>(null);
+
+  // History Drawer State
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedHistoryReg, setSelectedHistoryReg] = useState<Registration | null>(null);
+
+  // Status Action Feedback
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const eventRegs = registrations.filter((r) => r.eventId === event.id);
 
@@ -38,23 +86,115 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
       r.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.teamName && r.teamName.toLowerCase().includes(searchTerm.toLowerCase()));
+      (r.teamName && r.teamName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (r.membersList && r.membersList.some(m => m.name.toLowerCase().includes(searchTerm.toLowerCase()) || m.rollNumber.toLowerCase().includes(searchTerm.toLowerCase())));
 
     const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
     const matchesDept = deptFilter === 'ALL' || r.department.toLowerCase().includes(deptFilter.toLowerCase());
 
-    return matchesSearch && matchesStatus && matchesDept;
+    let matchesAttendance = true;
+    if (attendanceFilter === 'PRESENT') matchesAttendance = Boolean(r.attendance?.attended && r.attendance?.status !== 'LATE');
+    else if (attendanceFilter === 'LATE') matchesAttendance = r.attendance?.status === 'LATE';
+    else if (attendanceFilter === 'ABSENT') matchesAttendance = !r.attendance?.attended;
+    else if (attendanceFilter === 'INCOMPLETE') matchesAttendance = r.teamEligibility === 'INCOMPLETE_TEAM';
+    else if (attendanceFilter === 'REPLACED') matchesAttendance = (r.replacementHistory?.length || 0) > 0;
+
+    return matchesSearch && matchesStatus && matchesDept && matchesAttendance;
   });
 
   const confirmedCount = eventRegs.filter((r) => r.status === 'CONFIRMED').length;
-  const pendingCount = eventRegs.filter((r) => r.status === 'PENDING').length;
+  const presentCount = eventRegs.filter((r) => r.attendance?.attended && r.attendance?.status !== 'LATE').length;
+  const lateCount = eventRegs.filter((r) => r.attendance?.status === 'LATE').length;
+  const absentCount = eventRegs.filter((r) => !r.attendance?.attended).length;
+  const replacedCount = eventRegs.reduce((acc, r) => acc + (r.replacementHistory?.length || 0), 0);
+  const incompleteTeams = eventRegs.filter((r) => r.teamEligibility === 'INCOMPLETE_TEAM');
   const capacityPercent = Math.min(100, Math.round((eventRegs.length / event.maxStudents) * 100));
 
   const departments = Array.from(new Set(eventRegs.map((r) => r.department)));
 
+  const toggleExpandRow = (regId: string) => {
+    setExpandedRows((prev) => ({ ...prev, [regId]: !prev[regId] }));
+  };
+
+  const handleMarkStatus = (regId: string, status: AttendanceStatus, memberId?: string, memberName?: string) => {
+    markParticipantAttendance(regId, status, memberId);
+    setActionNotice(`${memberName ? `${memberName} marked` : 'Registration marked'} ${status}`);
+    setTimeout(() => setActionNotice(null), 3000);
+  };
+
+  const handleFinalizeRoster = () => {
+    const result = finalizeActiveRoster(event.id);
+    confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+    setActionNotice(result.message);
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
+  const handleUnfinalizeRoster = () => {
+    unfinalizeActiveRoster(event.id);
+    setActionNotice('Active roster reopened for attendance & substitution edits.');
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
+  const handleSendAbsenceAlerts = () => {
+    const result = sendAbsenceAlerts(event.id);
+    setActionNotice(result.message);
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
+  const openReplaceModal = (reg: Registration, member: TeamMember) => {
+    setReplacingReg(reg);
+    setReplacingMember(member);
+    setNewName('');
+    setNewRoll('');
+    setNewEmail('');
+    setNewPhone('');
+    setNewDept(member.department || 'Computer Science & Engineering');
+    setNewYear(member.year || '3rd Year (Junior)');
+    setNewSection(member.section || 'Sec-A');
+    setReplaceReason('');
+    setReplaceError(null);
+    setReplaceSuccess(null);
+  };
+
+  const handleExecuteReplacement = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replacingReg || !replacingMember) return;
+
+    if (!newName.trim() || !newRoll.trim() || !newEmail.trim() || !replaceReason.trim()) {
+      setReplaceError('Please complete all required fields and reason.');
+      return;
+    }
+
+    const result = replaceTeamMember(
+      replacingReg.id,
+      replacingMember.id,
+      {
+        name: newName.trim(),
+        rollNumber: newRoll.trim().toUpperCase(),
+        email: newEmail.trim().toLowerCase(),
+        phone: newPhone.trim(),
+        department: newDept,
+        year: newYear,
+        section: newSection,
+      },
+      replaceReason.trim()
+    );
+
+    if (result.success) {
+      setReplaceSuccess(result.message);
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+      setTimeout(() => {
+        setReplacingReg(null);
+        setReplacingMember(null);
+      }, 1500);
+    } else {
+      setReplaceError(result.message);
+    }
+  };
+
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['Reg ID', 'Student Name', 'Roll No', 'Email', 'Phone', 'Department', 'Year', 'Team Name', 'Attendance Status', 'Registered At'];
+    const headers = ['Reg ID', 'Student / Lead Name', 'Roll No', 'Email', 'Phone', 'Department', 'Year', 'Team Name', 'Attendance Status', 'Attendance %', 'Team Eligibility', 'Registered At'];
     const rows = filteredRegs.map((r) => [
       r.id,
       `"${r.studentName}"`,
@@ -63,8 +203,10 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
       r.phone,
       `"${r.department}"`,
       r.year,
-      `"${r.teamName || 'N/A'}"`,
-      r.attendance?.attended ? 'PRESENT' : 'ABSENT',
+      `"${r.teamName || 'Individual'}"`,
+      r.attendance?.status || (r.attendance?.attended ? 'PRESENT' : 'ABSENT'),
+      `${r.overallAttendancePercentage ?? (r.attendance?.attended ? 100 : 0)}%`,
+      r.teamEligibility || 'ELIGIBLE',
       r.registeredAt,
     ]);
 
@@ -72,7 +214,7 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `${event.title.replace(/\s+/g, '_')}_Registrations.csv`);
+    link.setAttribute('download', `${event.title.replace(/\s+/g, '_')}_Active_Roster.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -83,7 +225,7 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(filteredRegs, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `${event.title.replace(/\s+/g, '_')}_Registrations.json`);
+    downloadAnchor.setAttribute('download', `${event.title.replace(/\s+/g, '_')}_Active_Roster.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -91,303 +233,709 @@ export const RegistrationManager: React.FC<RegistrationManagerProps> = ({ event 
 
   return (
     <div className="space-y-6">
-      {/* Capacity & Summary Header Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-          <div className="text-xs text-slate-400 font-medium">Total Registered</div>
-          <div className="text-2xl font-bold font-display text-slate-100 mt-1">
-            {eventRegs.length} <span className="text-xs font-normal text-slate-500">/ {event.maxStudents} cap</span>
-          </div>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-            <div
-              className={`h-full rounded-full ${capacityPercent >= 90 ? 'bg-rose-500' : 'bg-indigo-500'}`}
-              style={{ width: `${capacityPercent}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-          <div className="text-xs text-slate-400 font-medium">Confirmed Seats</div>
-          <div className="text-2xl font-bold font-display text-emerald-400 mt-1">{confirmedCount}</div>
-          <div className="text-[11px] text-slate-500 mt-1">Approved for event entry</div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-          <div className="text-xs text-slate-400 font-medium">Teams Formed</div>
-          <div className="text-2xl font-bold font-display text-sky-400 mt-1">
-            {new Set(eventRegs.filter((r) => r.teamName).map((r) => r.teamName)).size}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1">Max capacity: {event.maxTeams} teams</div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-          <div className="text-xs text-slate-400 font-medium">Registration Status</div>
-          <div className="text-sm font-bold text-slate-100 mt-1 flex items-center gap-1.5">
-            {eventRegs.length >= event.maxStudents ? (
-              <span className="text-rose-400 font-semibold flex items-center gap-1">
-                <XCircle className="w-4 h-4" /> Capacity Locked (Full)
+      {/* Top Banner: Finalize Roster Controls & Summary */}
+      <div className="p-6 rounded-3xl border flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 transition-all" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+        <div>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider bg-indigo-500/15 text-indigo-600 border border-indigo-500/30">
+              Active Roster Intelligence Control
+            </span>
+            {event.isRosterFinalized ? (
+              <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 flex items-center gap-1">
+                <Lock className="w-3 h-3" /> Locked & Finalized
               </span>
             ) : (
-              <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                <CheckCircle2 className="w-4 h-4" /> Open & Accepting
+              <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/15 text-amber-600 border border-amber-500/30 flex items-center gap-1">
+                <Unlock className="w-3 h-3" /> Live Check-in / Draft Roster
               </span>
             )}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">Deadline: {new Date(event.registrationDeadline).toLocaleDateString()}</div>
+          <h2 className="text-xl font-display font-bold" style={{ color: 'var(--text-primary)' }}>
+            Participant Attendance & Active Team Roster
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Mark individual member attendance, substitute absent participants, and finalize the official roster used for jury panel evaluation and certificate generation.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {absentCount > 0 && (
+            <button
+              type="button"
+              onClick={handleSendAbsenceAlerts}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer hover:bg-slate-500/10"
+              style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+              title="Broadcast urgent alerts to absent registered students"
+            >
+              <Bell className="w-3.5 h-3.5 text-amber-500" />
+              <span>Send Absence Alerts ({absentCount})</span>
+            </button>
+          )}
+
+          {!event.isRosterFinalized ? (
+            <button
+              type="button"
+              onClick={handleFinalizeRoster}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Finalize Active Roster</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleUnfinalizeRoster}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg shadow-amber-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Unlock className="w-4 h-4" />
+              <span>Reopen Roster</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Action Notification */}
+      {actionNotice && (
+        <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 text-xs font-semibold flex items-center justify-between animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>{actionNotice}</span>
+          </div>
+          <span className="text-[10px] opacity-70">Audit synchronized</span>
+        </div>
+      )}
+
+      {/* Real-time KPI Stats Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+          <div className="text-xs text-slate-400 font-medium">Total Registered</div>
+          <div className="text-xl font-bold font-display mt-1" style={{ color: 'var(--text-primary)' }}>{eventRegs.length}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Cap: {event.maxStudents}</div>
+        </div>
+
+        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+          <div className="text-xs font-medium text-emerald-500">Present (On-Time)</div>
+          <div className="text-xl font-bold font-display text-emerald-500 mt-1">{presentCount}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Confirmed attendance</div>
+        </div>
+
+        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+          <div className="text-xs font-medium text-amber-500">Late Arrivals</div>
+          <div className="text-xl font-bold font-display text-amber-500 mt-1">{lateCount}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Logged with notes</div>
+        </div>
+
+        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+          <div className="text-xs font-medium text-rose-500">Absent / No-Show</div>
+          <div className="text-xl font-bold font-display text-rose-500 mt-1">{absentCount}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Pending check-in</div>
+        </div>
+
+        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+          <div className="text-xs font-medium text-purple-500">Substitutions</div>
+          <div className="text-xl font-bold font-display text-purple-500 mt-1">{replacedCount}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Member replacements</div>
+        </div>
+
+        <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+          <div className="text-xs font-medium text-indigo-500">Incomplete Squads</div>
+          <div className="text-xl font-bold font-display text-indigo-500 mt-1">{incompleteTeams.length}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Below min team size</div>
         </div>
       </div>
 
       {/* Controls Bar: Search, Filters, Export */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
         <div className="flex items-center gap-2 flex-1 max-w-md">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by student name, roll no, team..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full pl-9 pr-3 py-2 rounded-xl text-xs focus:outline-none border transition-all"
+              style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
             />
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Status Filter */}
+          {/* Attendance Filter */}
           <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none"
+            value={attendanceFilter}
+            onChange={(e) => setAttendanceFilter(e.target.value)}
+            className="px-3 py-2 rounded-xl border text-xs focus:outline-none"
+            style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
           >
-            <option value="ALL">All Statuses</option>
-            <option value="CONFIRMED">Confirmed</option>
-            <option value="PENDING">Pending Review</option>
-            <option value="REJECTED">Rejected</option>
+            <option value="ALL">All Attendance</option>
+            <option value="PRESENT">Present Only</option>
+            <option value="LATE">Late Only</option>
+            <option value="ABSENT">Absent / No-Show</option>
+            <option value="INCOMPLETE">Incomplete Squads</option>
+            <option value="REPLACED">Substituted Members</option>
           </select>
 
           {/* Department Filter */}
           <select
             value={deptFilter}
             onChange={(e) => setDeptFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none max-w-[160px] truncate"
+            className="px-3 py-2 rounded-xl border text-xs focus:outline-none max-w-[150px] truncate"
+            style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
           >
             <option value="ALL">All Departments</option>
             {departments.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
+              <option key={d} value={d}>{d}</option>
             ))}
           </select>
 
           {/* Export Actions */}
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-colors hover:bg-slate-500/10 cursor-pointer"
+            style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
             title="Export CSV"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
             <span>CSV</span>
           </button>
 
           <button
             onClick={handleExportJSON}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-colors hover:bg-slate-500/10 cursor-pointer"
+            style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
             title="Export JSON"
           >
-            <FileJson className="w-3.5 h-3.5 text-sky-400" />
+            <FileJson className="w-3.5 h-3.5 text-sky-500" />
             <span>JSON</span>
           </button>
         </div>
       </div>
 
       {/* Registrations Data Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+      <div className="overflow-x-auto rounded-3xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
         <table className="w-full text-left text-xs">
-          <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider">
+          <thead className="border-b uppercase text-[10px] tracking-wider" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-muted)' }}>
             <tr>
-              <th className="p-3.5">Student / Roll</th>
-              <th className="p-3.5">Department & Year</th>
-              <th className="p-3.5">Team</th>
-              <th className="p-3.5">Check-in Status</th>
-              <th className="p-3.5">Reg Status</th>
-              <th className="p-3.5 text-right">Actions</th>
+              <th className="p-4">Student / Squad</th>
+              <th className="p-4">Department & Year</th>
+              <th className="p-4">Team Status & Roster</th>
+              <th className="p-4">Attendance</th>
+              <th className="p-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y" style={{ borderColor: 'var(--border-default)' }}>
             {filteredRegs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-xs text-slate-500">
-                  No student registrations matching your filters.
+                <td colSpan={5} className="p-8 text-center text-xs text-slate-400">
+                  No participants matching your filters.
                 </td>
               </tr>
             ) : (
-              filteredRegs.map((reg) => (
-                <tr key={reg.id} className="hover:bg-slate-900/50 transition-colors">
-                  <td className="p-3.5">
-                    <div className="font-semibold text-slate-200">{reg.studentName}</div>
-                    <div className="text-[11px] font-mono text-indigo-400 mt-0.5">{reg.rollNumber}</div>
-                    <div className="text-[10px] text-slate-500">{reg.email}</div>
-                  </td>
+              filteredRegs.map((reg) => {
+                const members = reg.membersList || [];
+                const isTeam = Boolean(reg.teamName && members.length > 1);
+                const isExpanded = Boolean(expandedRows[reg.id]);
+                const isAttended = reg.attendance?.attended;
 
-                  <td className="p-3.5">
-                    <div className="text-slate-300 font-medium">{reg.department}</div>
-                    <div className="text-[11px] text-slate-500">{reg.year} • {reg.section}</div>
-                  </td>
+                return (
+                  <React.Fragment key={reg.id}>
+                    <tr className="hover:bg-slate-500/5 transition-colors">
+                      <td className="p-4">
+                        <div className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                          {reg.studentName}
+                        </div>
+                        <div className="text-[11px] font-mono text-sky-500 font-semibold mt-0.5">
+                          {reg.rollNumber}
+                        </div>
+                        <div className="text-[10px] text-slate-400">{reg.email}</div>
+                      </td>
 
-                  <td className="p-3.5">
-                    {reg.teamName ? (
-                      <div>
-                        <span className="px-2 py-0.5 rounded bg-indigo-950/70 border border-indigo-500/30 text-indigo-300 font-medium text-[11px]">
-                          {reg.teamName}
-                        </span>
-                        {reg.teamMembers && reg.teamMembers.length > 0 && (
-                          <div className="text-[10px] text-slate-500 mt-1">
-                            +{reg.teamMembers.length} members
+                      <td className="p-4">
+                        <div className="font-medium" style={{ color: 'var(--text-primary)' }}>{reg.department}</div>
+                        <div className="text-[11px] text-slate-400">{reg.year} • {reg.section}</div>
+                      </td>
+
+                      <td className="p-4">
+                        {reg.teamName ? (
+                          <div className="space-y-1">
+                            <span className="px-2 py-0.5 rounded-md font-bold text-[11px] bg-indigo-500/10 text-indigo-600 border border-indigo-500/30">
+                              {reg.teamName}
+                            </span>
+                            <div className="text-[10px] text-slate-400">
+                              {members.filter(m => m.isActive).length} active members
+                            </div>
+                            {reg.teamEligibility === 'INCOMPLETE_TEAM' && (
+                              <span className="text-[10px] text-amber-500 font-bold block flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" /> Incomplete Squad
+                              </span>
+                            )}
                           </div>
+                        ) : (
+                          <span className="text-slate-400 italic">Solo Participant</span>
                         )}
-                      </div>
-                    ) : (
-                      <span className="text-slate-500 italic">Individual</span>
+                      </td>
+
+                      <td className="p-4">
+                        <div className="space-y-1">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              reg.attendance?.status === 'LATE'
+                                ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30'
+                                : isAttended
+                                ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30'
+                                : 'bg-rose-500/10 text-rose-600 border border-rose-500/30'
+                            }`}
+                          >
+                            {isAttended ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                            <span>{reg.attendance?.status || (isAttended ? 'PRESENT' : 'ABSENT')}</span>
+                          </span>
+
+                          <div className="text-[10px] text-slate-400">
+                            Score: <strong className="text-emerald-500">{reg.overallAttendancePercentage ?? (isAttended ? 100 : 0)}%</strong>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          {/* Quick Attendance Toggle Buttons */}
+                          <button
+                            type="button"
+                            onClick={() => handleMarkStatus(reg.id, 'PRESENT', undefined, reg.studentName)}
+                            className="p-1.5 rounded-lg border text-emerald-600 hover:bg-emerald-500/10 cursor-pointer"
+                            style={{ borderColor: 'var(--border-default)' }}
+                            title="Mark Present"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleMarkStatus(reg.id, 'LATE', undefined, reg.studentName)}
+                            className="p-1.5 rounded-lg border text-amber-600 hover:bg-amber-500/10 cursor-pointer"
+                            style={{ borderColor: 'var(--border-default)' }}
+                            title="Mark Late"
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleMarkStatus(reg.id, 'ABSENT', undefined, reg.studentName)}
+                            className="p-1.5 rounded-lg border text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                            style={{ borderColor: 'var(--border-default)' }}
+                            title="Mark Absent"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Replacement History */}
+                          {reg.replacementHistory && reg.replacementHistory.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedHistoryReg(reg); setShowHistoryModal(true); }}
+                              className="p-1.5 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-600 hover:bg-purple-500/20 cursor-pointer"
+                              title="View Substitution Timeline"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Expand Members */}
+                          {isTeam && (
+                            <button
+                              type="button"
+                              onClick={() => toggleExpandRow(reg.id)}
+                              className="p-1.5 rounded-lg border text-slate-400 hover:text-slate-200 cursor-pointer"
+                              style={{ borderColor: 'var(--border-default)' }}
+                              title="Toggle Squad Member Details"
+                            >
+                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+
+                          {/* View Custom Responses */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReg(reg)}
+                            className="p-1.5 rounded-lg border text-slate-400 hover:text-slate-200 cursor-pointer"
+                            style={{ borderColor: 'var(--border-default)' }}
+                            title="View Form Data"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Team Members Sub-Roster Row */}
+                    {isTeam && isExpanded && (
+                      <tr style={{ backgroundColor: 'var(--surface-raised)' }}>
+                        <td colSpan={5} className="p-4 border-b" style={{ borderColor: 'var(--border-default)' }}>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
+                              <span>Squad Members Roster & Individual Attendance</span>
+                              <span className="text-[10px] text-slate-400 font-normal">
+                                Team Lead: {reg.studentName} ({reg.rollNumber})
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {members.map((member) => {
+                                const isReplaced = member.attendanceStatus === 'REPLACED';
+                                const isMemberPresent = member.attendanceStatus === 'PRESENT' || member.attendanceStatus === 'LATE';
+
+                                return (
+                                  <div
+                                    key={member.id}
+                                    className="p-3 rounded-2xl border flex flex-col justify-between gap-2"
+                                    style={{
+                                      backgroundColor: isReplaced ? 'rgba(100,116,139,0.06)' : 'var(--surface-base)',
+                                      borderColor: 'var(--border-default)',
+                                      opacity: isReplaced ? 0.6 : 1,
+                                    }}
+                                  >
+                                    <div>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                          <div className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
+                                            {member.name}
+                                          </div>
+                                          <div className="font-mono text-[10px] text-sky-500">{member.rollNumber}</div>
+                                          <div className="text-[10px] text-slate-400">{member.email}</div>
+                                        </div>
+
+                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                          isMemberPresent ? 'bg-emerald-500/10 text-emerald-600' : isReplaced ? 'bg-slate-500/10 text-slate-500' : 'bg-rose-500/10 text-rose-600'
+                                        }`}>
+                                          {member.attendanceStatus}
+                                        </span>
+                                      </div>
+
+                                      {member.replacementInfo && (
+                                        <div className="mt-1.5 p-1.5 rounded-lg bg-purple-500/10 text-[9px] text-purple-600">
+                                          Substituted: {member.replacementInfo.reason}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {!isReplaced && (
+                                      <div className="flex items-center gap-1 pt-2 border-t" style={{ borderColor: 'var(--border-default)' }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMarkStatus(reg.id, 'PRESENT', member.id, member.name)}
+                                          className="flex-1 py-1 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 cursor-pointer"
+                                        >
+                                          Present
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMarkStatus(reg.id, 'LATE', member.id, member.name)}
+                                          className="flex-1 py-1 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 cursor-pointer"
+                                        >
+                                          Late
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMarkStatus(reg.id, 'ABSENT', member.id, member.name)}
+                                          className="flex-1 py-1 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 cursor-pointer"
+                                        >
+                                          Absent
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => openReplaceModal(reg, member)}
+                                          className="py-1 px-2 rounded text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer"
+                                          title="Replace Member"
+                                        >
+                                          <UserPlus className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-
-                  <td className="p-3.5">
-                    {reg.attendance?.attended ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold">
-                        <CheckCircle2 className="w-3 h-3" /> Checked In
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900 text-slate-400 border border-slate-800 text-[11px]">
-                        <Clock className="w-3 h-3" /> Pending QR
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="p-3.5">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                        reg.status === 'CONFIRMED'
-                          ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/30'
-                          : reg.status === 'PENDING'
-                          ? 'bg-amber-950/60 text-amber-300 border border-amber-500/30'
-                          : 'bg-rose-950/60 text-rose-300 border border-rose-500/30'
-                      }`}
-                    >
-                      {reg.status}
-                    </span>
-                  </td>
-
-                  <td className="p-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => setSelectedReg(reg)}
-                        className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
-                        title="View Custom Form Responses"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-
-                      {reg.status !== 'CONFIRMED' && (
-                        <button
-                          onClick={() => updateRegistrationStatus(reg.id, 'CONFIRMED')}
-                          className="px-2 py-1 rounded bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 text-[11px] font-semibold border border-emerald-500/30"
-                        >
-                          Approve
-                        </button>
-                      )}
-
-                      {reg.status !== 'REJECTED' && (
-                        <button
-                          onClick={() => updateRegistrationStatus(reg.id, 'REJECTED')}
-                          className="px-2 py-1 rounded bg-rose-600/20 text-rose-300 hover:bg-rose-600/30 text-[11px] font-semibold border border-rose-500/30"
-                        >
-                          Reject
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                  </React.Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Detailed Response Modal */}
+      {/* MEMBER REPLACEMENT MODAL */}
+      {replacingReg && replacingMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden animate-scale-in" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+            <div className="p-5 border-b flex items-center justify-between" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base font-display" style={{ color: 'var(--text-primary)' }}>
+                    Substitute Team Participant
+                  </h3>
+                  <p className="text-xs text-slate-400">Team: {replacingReg.teamName || replacingReg.studentName}</p>
+                </div>
+              </div>
+              <button onClick={() => { setReplacingReg(null); setReplacingMember(null); }} className="p-1 text-slate-400 hover:text-slate-200 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteReplacement} className="p-6 space-y-4 text-xs">
+              <div className="p-3.5 rounded-xl border bg-rose-500/5 border-rose-500/20 text-xs">
+                <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block">Member Being Substituted</span>
+                <div className="font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>{replacingMember.name}</div>
+                <div className="text-slate-400 text-[11px]">{replacingMember.rollNumber} • {replacingMember.email}</div>
+              </div>
+
+              {replaceError && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 font-semibold flex items-center gap-2">
+                  <XCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{replaceError}</span>
+                </div>
+              )}
+
+              {replaceSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  <span>{replaceSuccess}</span>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                      New Member Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="e.g. Priya Sharma"
+                      className="w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-indigo-500"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                      Roll Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newRoll}
+                      onChange={(e) => setNewRoll(e.target.value)}
+                      placeholder="e.g. 21CS088"
+                      className="w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-indigo-500 font-mono"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                      Institutional Email *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="priya.s@college.edu"
+                      className="w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-indigo-500"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                      placeholder="+91 98000 11223"
+                      className="w-full px-3 py-2 rounded-xl border text-xs focus:outline-none"
+                      style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+                    Official Reason for Substitution *
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    value={replaceReason}
+                    onChange={(e) => setReplaceReason(e.target.value)}
+                    placeholder="e.g. Approved medical leave / emergency replacement"
+                    className="w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-indigo-500"
+                    style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t flex justify-end gap-2" style={{ borderColor: 'var(--border-default)' }}>
+                <button
+                  type="button"
+                  onClick={() => { setReplacingReg(null); setReplacingMember(null); }}
+                  className="px-4 py-2 rounded-xl border font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                  style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold cursor-pointer shadow-lg shadow-indigo-600/30 transition-all"
+                >
+                  Confirm Substitution
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MEMBER REPLACEMENT TIMELINE MODAL */}
+      {showHistoryModal && selectedHistoryReg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden animate-scale-in" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+            <div className="p-5 border-b flex items-center justify-between" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-purple-500" />
+                <h3 className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>
+                  Substitution Audit Trail: {selectedHistoryReg.teamName || selectedHistoryReg.studentName}
+                </h3>
+              </div>
+              <button onClick={() => setShowHistoryModal(false)} className="p-1 text-slate-400 hover:text-slate-200 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
+              {selectedHistoryReg.replacementHistory?.map((hist) => (
+                <div key={hist.id} className="p-4 rounded-2xl border space-y-3" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Replaced by <strong>{hist.replacedByActorName}</strong> ({hist.replacedByActorRole})</span>
+                    <span>{new Date(hist.replacedAt).toLocaleString()}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-2.5 rounded-xl border bg-rose-500/5 border-rose-500/20">
+                      <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wider block">Original (Replaced)</span>
+                      <div className="font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>{hist.originalMember.name}</div>
+                      <div className="text-[10px] text-slate-400">{hist.originalMember.rollNumber}</div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
+                      <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider block">New Active Member</span>
+                      <div className="font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>{hist.newMember.name}</div>
+                      <div className="text-[10px] text-slate-400">{hist.newMember.rollNumber}</div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Reason</span>
+                    <p className="mt-0.5 italic text-slate-300">{hist.reason}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 border-t flex justify-end" style={{ borderColor: 'var(--border-default)' }}>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="px-4 py-2 rounded-xl border font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}
+              >
+                Close Audit View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DETAILED RESPONSE MODAL */}
       {selectedReg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+            <div className="p-5 border-b flex items-center justify-between" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
               <div>
-                <h3 className="text-base font-display font-bold text-slate-100">
-                  Registration Form Submission
+                <h3 className="text-base font-display font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Registration Submission Profile
                 </h3>
                 <p className="text-xs text-slate-400">
                   {selectedReg.studentName} ({selectedReg.rollNumber})
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedReg(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200"
-              >
+              <button onClick={() => setSelectedReg(null)} className="p-1.5 text-slate-400 hover:text-slate-200 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">Student Email</span>
-                  <div className="font-semibold text-slate-200">{selectedReg.email}</div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Student Email</span>
+                  <div className="font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>{selectedReg.email}</div>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">Contact Number</span>
-                  <div className="font-semibold text-slate-200">{selectedReg.phone}</div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Contact Number</span>
+                  <div className="font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>{selectedReg.phone}</div>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">Department</span>
-                  <div className="font-semibold text-slate-200">{selectedReg.department}</div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Department</span>
+                  <div className="font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>{selectedReg.department}</div>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">College</span>
-                  <div className="font-semibold text-slate-200">{selectedReg.college}</div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Attendance Score</span>
+                  <div className="font-semibold text-emerald-500 mt-0.5">{selectedReg.overallAttendancePercentage ?? 100}%</div>
                 </div>
               </div>
 
               {/* Dynamic AI Custom Form Responses */}
               <div>
-                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">
-                  Event-Specific Custom Responses
+                <h4 className="text-xs font-bold uppercase tracking-wider mb-2 text-indigo-500">
+                  Form Responses
                 </h4>
                 <div className="space-y-2">
                   {Object.entries(selectedReg.customResponses || {}).map(([key, value]) => {
                     const matchedField = event.registrationForm.find((f) => f.id === key);
                     const label = matchedField ? matchedField.label : key;
                     return (
-                      <div key={key} className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                      <div key={key} className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
                         <div className="text-[11px] font-semibold text-slate-400 mb-1">{label}</div>
-                        <div className="text-slate-200 font-medium whitespace-pre-wrap">
-                          {String(value) || <span className="text-slate-600 italic">Not provided</span>}
+                        <div className="font-medium whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
+                          {String(value) || <span className="text-slate-400 italic">Not provided</span>}
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-
-              {/* QR Badge Data */}
-              <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/20">
-                <div className="text-[11px] font-bold text-indigo-300">Assigned QR Check-in Code Data</div>
-                <div className="font-mono text-[10px] text-slate-400 break-all mt-1">
-                  {selectedReg.qrCodeData}
-                </div>
-              </div>
             </div>
 
-            <div className="p-4 border-t border-slate-800 bg-slate-950 flex justify-end">
+            <div className="p-4 border-t flex justify-end" style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--surface-raised)' }}>
               <button
                 onClick={() => setSelectedReg(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-xs font-semibold text-slate-200 hover:bg-slate-700"
+                className="px-4 py-2 rounded-xl border font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                style={{ borderColor: 'var(--border-default)' }}
               >
                 Close View
               </button>

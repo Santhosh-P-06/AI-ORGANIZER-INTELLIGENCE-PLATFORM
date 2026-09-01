@@ -15,12 +15,35 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
+    "incremental": true,
+    "esModuleInterop": true,
     "paths": {
       "@/*": [
-        "./*"
+        "./src/*"
       ]
     },
     "allowImportingTsExtensions": true,
-    "noEmit": true
-  }
+    "noEmit": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "strict": false,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "server.ts",
+    "vite.config.ts",
+    "src/main.tsx"
+  ]
 }

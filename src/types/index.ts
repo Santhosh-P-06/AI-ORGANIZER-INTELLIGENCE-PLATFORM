@@ -85,7 +85,14 @@ export type VolunteerRoleType =
   | 'Student Guidance & Ushering'
   | 'Panel & Jury Coordination'
   | 'Time Management & Bell'
-  | 'Certificate Distribution';
+  | 'Certificate Distribution'
+  | 'Registration Desk Coordinator'
+  | 'QR Attendance Scanner'
+  | 'Lab / Room Logistics Lead'
+  | 'Jury Panel Coordination'
+  | 'Student Guidance & Helpdesk'
+  | 'Stage & Certificate Distribution'
+  | 'Time Keeper & Stage Manager';
 
 export interface VolunteerAssignment {
   id: string;

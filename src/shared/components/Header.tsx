@@ -1,18 +1,13 @@
-import React, { useState } from 'react';
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useTheme } from '../../context/ThemeContext';
 import { UserRole } from '../../types';
 import {
-  Sparkles,
-  Shield,
-  UserCheck,
-  GraduationCap,
-  Bell,
-  LogOut,
-  LogIn,
-  ExternalLink,
-  Calendar,
-  Layers,
-  Award
+  Sparkles, Shield, UserCheck, GraduationCap,
+  Bell, LogOut, LogIn, Calendar, Layers, Award,
+  Sun, Moon, X,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -30,171 +25,286 @@ export const Header: React.FC<HeaderProps> = ({
   onGoDashboard,
   currentViewState = 'LANDING',
 }) => {
-  const {
-    currentUser,
-    currentRole,
-    logout,
-    notifications,
-    markNotificationRead,
-    clearAllNotifications,
-  } = useApp();
+  const { currentUser, currentRole, logout, notifications, markNotificationRead, clearAllNotifications } = useApp();
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
 
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [showNotif, setShowNotif] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unread = notifications.filter((n) => !n.read).length;
 
-  const roleDetails: Record<UserRole, { label: string; icon: any; color: string; bg: string }> = {
-    ORGANISER: { label: 'Organiser', icon: Calendar, color: 'text-indigo-400', bg: 'bg-indigo-950/70 border-indigo-500/30' },
-    VOLUNTEER: { label: 'Volunteer', icon: UserCheck, color: 'text-emerald-400', bg: 'bg-emerald-950/70 border-emerald-500/30' },
-    STUDENT: { label: 'Participant', icon: GraduationCap, color: 'text-sky-400', bg: 'bg-sky-950/70 border-sky-500/30' },
-    ADMIN: { label: 'Admin', icon: Shield, color: 'text-amber-400', bg: 'bg-amber-950/70 border-amber-500/30' },
+  useEffect(() => {
+    const h = () => setScrolled(window.scrollY > 8);
+    window.addEventListener('scroll', h);
+    return () => window.removeEventListener('scroll', h);
+  }, []);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotif(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const roleInfo: Record<UserRole, { label: string; icon: any; color: string; bgLight: string; bgDark: string }> = {
+    ORGANISER: { label: 'Organiser', icon: Calendar,      color: '#4f46e5', bgLight: 'rgba(79,70,229,0.08)',  bgDark: 'rgba(79,70,229,0.15)' },
+    VOLUNTEER: { label: 'Volunteer', icon: UserCheck,     color: '#059669', bgLight: 'rgba(5,150,105,0.08)',  bgDark: 'rgba(5,150,105,0.15)' },
+    STUDENT:   { label: 'Participant', icon: GraduationCap, color: '#0284c7', bgLight: 'rgba(2,132,199,0.08)', bgDark: 'rgba(2,132,199,0.15)' },
+    ADMIN:     { label: 'Admin',     icon: Shield,        color: '#d97706', bgLight: 'rgba(217,119,6,0.08)',  bgDark: 'rgba(217,119,6,0.15)' },
+  };
+  const ri = roleInfo[currentRole];
+  const RoleIcon = ri.icon;
+
+  const headerBg = isDark
+    ? `rgba(8,12,20,${scrolled ? 0.98 : 0.90})`
+    : `rgba(255,255,255,${scrolled ? 0.98 : 0.88})`;
+  const borderColor = isDark ? 'rgba(99,179,237,0.10)' : 'rgba(37,99,235,0.10)';
+  const btnBg = isDark ? 'rgba(17,24,39,0.8)' : 'rgba(239,246,255,0.9)';
+
+  const btnStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '8px', borderRadius: '10px', cursor: 'pointer',
+    border: `1px solid ${borderColor}`, background: btnBg,
+    color: 'var(--text-muted)', transition: 'all 0.2s', flexShrink: 0,
   };
 
-  const currentRoleInfo = roleDetails[currentRole];
-
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Brand */}
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => currentUser ? onGoDashboard?.() : onGoHome()} title={currentUser ? 'Open my dashboard' : 'Go to home'}>
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 ring-1 ring-white/20">
-            <Sparkles className="w-5 h-5 text-white animate-pulse" />
+    <header style={{
+      position: 'sticky', top: 0, zIndex: 50, width: '100%',
+      background: headerBg,
+      backdropFilter: 'blur(20px) saturate(180%)',
+      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+      borderBottom: `1px solid ${borderColor}`,
+      boxShadow: scrolled ? (isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(37,99,235,0.08)') : 'none',
+      transition: 'all 0.3s',
+    }}>
+      {/* Inner — max-width centered, full height bar */}
+      <div style={{
+        maxWidth: '1280px',
+        margin: '0 auto',
+        padding: '0 24px',
+        height: '64px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+      }}>
+        {/* ── Brand ── */}
+        <div
+          onClick={() => currentUser ? onGoDashboard?.() : onGoHome()}
+          style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flexShrink: 0 }}
+        >
+          <div style={{
+            width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
+            background: 'linear-gradient(135deg,#1d4ed8,#2563eb,#4f46e5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 14px rgba(37,99,235,0.30)',
+          }}>
+            <Sparkles style={{ width: '20px', height: '20px', color: '#fff' }} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-display font-bold text-lg text-slate-100 tracking-tight">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700,
+                fontSize: '17px', color: 'var(--text-primary)', letterSpacing: '-0.3px',
+              }}>
                 AI Event Organiser
               </span>
-              <span className="hidden sm:inline-flex text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/40 text-indigo-300">
+              <span style={{
+                fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em',
+                padding: '2px 8px', borderRadius: '99px', textTransform: 'uppercase',
+                background: isDark ? 'rgba(37,99,235,0.15)' : 'rgba(219,234,254,0.8)',
+                border: `1px solid ${isDark ? 'rgba(99,179,237,0.20)' : 'rgba(37,99,235,0.20)'}`,
+                color: isDark ? '#93c5fd' : '#1d4ed8',
+                display: 'none',
+              }} className="sm-show">
                 OS Intel
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 hidden sm:block">
-              Intelligent Collegiate Event Platform
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
+              Intelligent Collegiate Platform
             </p>
           </div>
         </div>
 
-        {/* Right Navigation & Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Quick Dashboard link if on landing/verify view */}
-          {currentViewState !== 'DASHBOARD' && (
+        {/* ── Right Controls ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+
+          {/* Dashboard Link */}
+          {currentViewState !== 'DASHBOARD' && currentUser && (
             <button
               onClick={onGoDashboard}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600/90 hover:bg-indigo-600 shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
-              title="Open Role Dashboard"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 14px', borderRadius: '10px', cursor: 'pointer',
+                background: 'linear-gradient(135deg,#1d4ed8,#2563eb)',
+                color: '#fff', border: 'none',
+                fontSize: '12px', fontWeight: 700,
+                boxShadow: '0 3px 12px rgba(37,99,235,0.30)',
+                transition: 'all 0.2s', whiteSpace: 'nowrap',
+              }}
             >
-              <Layers className="w-3.5 h-3.5" />
+              <Layers style={{ width: '14px', height: '14px' }} />
               <span>{currentRole.charAt(0) + currentRole.slice(1).toLowerCase()} Dashboard</span>
             </button>
           )}
 
-          {/* Certificate Public Verification Link */}
+          {/* Verify Certificate */}
           <button
             onClick={onOpenVerification}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 transition-colors cursor-pointer"
-            title="Public Certificate Verification"
+            style={{ ...btnStyle, padding: '8px 14px', gap: '6px' }}
           >
-            <Award className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden lg:inline">Verify Certificate</span>
+            <Award style={{ width: '14px', height: '14px', color: '#d97706' }} />
+            <span style={{ fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>Verify Cert</span>
           </button>
 
-          {/* Authenticated role indicator: roles cannot be switched from the interface. */}
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border ${currentRoleInfo.bg} ${currentRoleInfo.color}`}
-            title="Your authenticated role"
-          >
-            <currentRoleInfo.icon className="w-3.5 h-3.5" />
-            <span>{currentRoleInfo.label}</span>
-          </div>
+          {/* Role Badge */}
+          {currentUser && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '6px 12px', borderRadius: '10px',
+              background: isDark ? ri.bgDark : ri.bgLight,
+              border: `1px solid ${ri.color}30`,
+              fontSize: '12px', fontWeight: 600, color: ri.color,
+              whiteSpace: 'nowrap',
+            }}>
+              <RoleIcon style={{ width: '13px', height: '13px' }} />
+              <span>{ri.label}</span>
+            </div>
+          )}
 
-          {/* Notifications Center */}
-          <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-slate-800/80 transition-colors cursor-pointer"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/50 animate-pulse">
-                  {unreadCount}
+          {/* Theme Toggle */}
+          <button onClick={toggleTheme} style={btnStyle} title={isDark ? 'Light Mode' : 'Dark Mode'}>
+            {isDark
+              ? <Sun style={{ width: '16px', height: '16px', color: '#fbbf24' }} />
+              : <Moon style={{ width: '16px', height: '16px', color: '#2563eb' }} />
+            }
+          </button>
+
+          {/* Notifications */}
+          <div style={{ position: 'relative' }} ref={notifRef}>
+            <button onClick={() => setShowNotif(!showNotif)} style={{ ...btnStyle, position: 'relative' }}>
+              <Bell style={{ width: '16px', height: '16px' }} />
+              {unread > 0 && (
+                <span style={{
+                  position: 'absolute', top: '-4px', right: '-4px',
+                  width: '16px', height: '16px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg,#1d4ed8,#3b82f6)',
+                  color: '#fff', fontSize: '9px', fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {unread}
                 </span>
               )}
             </button>
 
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in">
-                <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-                  <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-indigo-400" />
-                    <span className="text-xs font-bold text-slate-200">Event Notifications</span>
+            {showNotif && (
+              <div style={{
+                position: 'absolute', right: 0, top: 'calc(100% + 8px)',
+                width: '360px', borderRadius: '20px', overflow: 'hidden',
+                background: isDark ? '#0f172a' : '#ffffff',
+                border: `1px solid ${borderColor}`,
+                boxShadow: isDark ? '0 20px 60px rgba(0,0,0,0.6)' : '0 20px 60px rgba(37,99,235,0.15)',
+                zIndex: 100,
+              }}>
+                {/* Header */}
+                <div style={{
+                  padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  borderBottom: `1px solid ${borderColor}`,
+                  background: isDark ? 'rgba(17,24,39,0.6)' : 'rgba(239,246,255,0.7)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Bell style={{ width: '14px', height: '14px', color: '#2563eb' }} />
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Notifications</span>
+                    {unread > 0 && (
+                      <span style={{ padding: '2px 7px', borderRadius: '99px', background: '#2563eb', color: '#fff', fontSize: '10px', fontWeight: 700 }}>
+                        {unread}
+                      </span>
+                    )}
                   </div>
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={clearAllNotifications}
-                      className="text-[11px] text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer"
-                    >
-                      Mark all as read
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {unread > 0 && (
+                      <button onClick={clearAllNotifications} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                        Mark all read
+                      </button>
+                    )}
+                    <button onClick={() => setShowNotif(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}>
+                      <X style={{ width: '14px', height: '14px' }} />
                     </button>
-                  )}
+                  </div>
                 </div>
-                <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/50">
+
+                {/* List */}
+                <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
                   {notifications.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-slate-500">
+                    <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-subtle)', fontSize: '13px' }}>
                       No notifications yet
                     </div>
-                  ) : (
-                    notifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        onClick={() => markNotificationRead(notif.id)}
-                        className={`p-3 text-xs transition-colors cursor-pointer hover:bg-slate-800/50 ${
-                          !notif.read ? 'bg-indigo-950/30' : ''
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <span className={`font-semibold ${!notif.read ? 'text-indigo-300' : 'text-slate-300'}`}>
-                            {notif.title}
-                          </span>
-                          <span className="text-[10px] text-slate-500 whitespace-nowrap">
-                            {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                  ) : notifications.map((n) => (
+                    <div key={n.id} onClick={() => markNotificationRead(n.id)}
+                      style={{
+                        padding: '12px 16px', cursor: 'pointer',
+                        borderBottom: `1px solid ${borderColor}`,
+                        background: !n.read ? (isDark ? 'rgba(37,99,235,0.08)' : 'rgba(239,246,255,0.8)') : 'transparent',
+                        transition: 'background 0.2s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '3px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {!n.read && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2563eb', flexShrink: 0 }} />}
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{n.title}</span>
                         </div>
-                        <p className="text-slate-400 text-[11px] leading-relaxed">{notif.message}</p>
+                        <span style={{ fontSize: '10px', color: 'var(--text-subtle)', whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                          {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
-                    ))
-                  )}
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5, paddingLeft: n.read ? 0 : '12px' }}>
+                        {n.message}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
           </div>
 
-          {/* User Profile & Auth button */}
+          {/* User / Login */}
           {currentUser ? (
-            <div className="flex items-center gap-2">
-              <div className="hidden sm:flex flex-col text-right">
-                <span className="text-xs font-semibold text-slate-200">{currentUser.name}</span>
-                <span className="text-[10px] text-slate-400">{currentUser.department}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '34px', height: '34px', borderRadius: '50%',
+                background: 'linear-gradient(135deg,#1d4ed8,#4f46e5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontSize: '13px', fontWeight: 800, flexShrink: 0,
+              }}>
+                {currentUser.name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
               <button
-                onClick={() => {
-                  logout();
-                  onOpenAuth('STUDENT');
-                }}
-                className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 border border-slate-800/80 transition-colors cursor-pointer"
+                onClick={() => { logout(); onOpenAuth('STUDENT'); }}
+                style={{ ...btnStyle }}
                 title="Logout"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut style={{ width: '15px', height: '15px' }} />
               </button>
             </div>
           ) : (
             <button
               onClick={() => onOpenAuth('STUDENT')}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '9px 16px', borderRadius: '12px', cursor: 'pointer',
+                background: 'linear-gradient(135deg,#1d4ed8,#2563eb)',
+                color: '#fff', border: 'none',
+                fontSize: '13px', fontWeight: 700,
+                boxShadow: '0 3px 12px rgba(37,99,235,0.35)',
+                transition: 'all 0.2s',
+              }}
             >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Login</span>
+              <LogIn style={{ width: '14px', height: '14px' }} />
+              <span>Sign In</span>
             </button>
           )}
         </div>

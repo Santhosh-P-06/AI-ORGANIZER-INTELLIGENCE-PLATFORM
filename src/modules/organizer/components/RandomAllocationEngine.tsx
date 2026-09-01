@@ -52,11 +52,14 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
   const [editForm, setEditForm] = useState<Partial<PanelAllocation>>({});
   const [searchFilter, setSearchFilter] = useState('');
 
-  // Extract distinct teams from registrations
+  // Extract distinct teams from registrations (prioritizing active present teams from finalized roster)
   const eventRegs = registrations.filter((r) => r.eventId === event.id);
+  const activePresentRegs = eventRegs.filter((r) => r.attendance?.attended && r.teamEligibility !== 'DISQUALIFIED_ABSENT');
+  const targetRegs = activePresentRegs.length > 0 ? activePresentRegs : eventRegs;
+
   const teamNames = Array.from(
     new Set(
-      eventRegs
+      targetRegs
         .map((r) => r.teamName || r.studentName)
         .filter(Boolean)
     )
@@ -354,7 +357,7 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
                           <input
                             type="text"
                             value={editForm.roundNumber || ''}
-                            onChange={(e) => setEditForm({ ...editForm, roundNumber: e.target.value })}
+                            onChange={(e) => setEditForm({ ...editForm, roundNumber: Number(e.target.value) })}
                             className="w-20 px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-xs text-slate-100"
                           />
                         ) : (

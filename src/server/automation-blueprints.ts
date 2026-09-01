@@ -1,0 +1,68 @@
+export const automationBlueprints = [
+  {
+    id: 'registration-created',
+    label: 'Registration Created',
+    topic: 'registration.created',
+    webhookPath: '/api/n8n/webhook/registration.created',
+    useFor: 'Send confirmation email, add student to a sheet/CRM, notify event organizers.',
+    payloadExample: {
+      eventId: 'evt_technohack_2026',
+      registrationId: 'reg_123',
+      studentName: 'Rahul Kumar',
+      email: 'student@college.edu',
+      teamName: 'Quantum Pioneers',
+    },
+  },
+  {
+    id: 'attendance-recorded',
+    label: 'Attendance Recorded',
+    topic: 'attendance.recorded',
+    webhookPath: '/api/n8n/webhook/attendance.recorded',
+    useFor: 'Update attendance spreadsheets, send welcome messages, notify room volunteers.',
+    payloadExample: {
+      eventId: 'evt_technohack_2026',
+      rollNumber: '21CS042',
+      status: 'PRESENT',
+      volunteerName: 'Priya Venkatesh',
+    },
+  },
+  {
+    id: 'allocation-published',
+    label: 'Panel Allocation Published',
+    topic: 'allocation.published',
+    webhookPath: '/api/n8n/webhook/allocation.published',
+    useFor: 'Message each team with room, panel, time slot, and round instructions.',
+    payloadExample: {
+      eventId: 'evt_technohack_2026',
+      teamName: 'Quantum Pioneers',
+      room: 'Room 101',
+      timeSlot: '10:00 AM - 10:15 AM',
+    },
+  },
+  {
+    id: 'certificate-generated',
+    label: 'Certificate Generated',
+    topic: 'certificate.generated',
+    webhookPath: '/api/n8n/webhook/certificate.generated',
+    useFor: 'Send certificate email, archive PDF, and post-delivery receipt back to the platform.',
+    payloadExample: {
+      eventId: 'evt_technohack_2026',
+      certificateId: 'CERT-TH-2026-8801',
+      recipientEmail: 'student@college.edu',
+      verificationUrl: '/verify/CERT-TH-2026-8801',
+    },
+  },
+  {
+    id: 'absence-alert',
+    label: 'Absence Alert',
+    topic: 'attendance.absent',
+    webhookPath: '/api/n8n/webhook/attendance.absent',
+    useFor: 'Alert coordinators, message absent team members, and request replacement approval.',
+    payloadExample: {
+      eventId: 'evt_technohack_2026',
+      teamName: 'CyberVanguard',
+      missingMember: 'Tanya Mehra',
+      rollNumber: '21CS102',
+    },
+  },
+];

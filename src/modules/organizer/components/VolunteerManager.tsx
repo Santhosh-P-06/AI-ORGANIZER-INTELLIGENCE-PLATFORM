@@ -27,13 +27,13 @@ export const VolunteerManager: React.FC<VolunteerManagerProps> = ({ event }) => 
   const [volunteerName, setVolunteerName] = useState('');
   const [volunteerEmail, setVolunteerEmail] = useState('');
   const [volunteerPhone, setVolunteerPhone] = useState('+91 98450 99881');
-  const [role, setRole] = useState('QR Attendance Scanner');
+  const [role, setRole] = useState<VolunteerAssignment['role']>('Attendance & QR Verification');
   const [location, setLocation] = useState('Auditorium Entry Gate A');
   const [timeSlot, setTimeSlot] = useState('08:30 AM - 01:00 PM');
 
-  const volunteerRoles = [
+  const volunteerRoles: VolunteerAssignment['role'][] = [
     'Registration Desk Coordinator',
-    'QR Attendance Scanner',
+    'Attendance & QR Verification',
     'Lab / Room Logistics Lead',
     'Jury Panel Coordination',
     'Student Guidance & Helpdesk',
@@ -216,7 +216,7 @@ export const VolunteerManager: React.FC<VolunteerManagerProps> = ({ event }) => 
                 <label className="block text-slate-300 font-semibold mb-1">Assigned Responsibility Role</label>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value)}
+                  onChange={(e) => setRole(e.target.value as VolunteerAssignment['role'])}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100"
                 >
                   {volunteerRoles.map((r) => (

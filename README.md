@@ -1,20 +1,70 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# AI Event Organiser Intelligence Platform
 
-# Run and deploy your AI Studio app
+A collegiate event operating system aligned to the required stack:
 
-This contains everything you need to run your app locally.
+- Frontend: Next.js App Router
+- Backend: Node.js route handlers for APIs, event processing, and AI services
+- Database: PostgreSQL
+- Mobile: Flutter cross-platform scaffold
+- UI/UX: Figma handoff notes
+- Automation: n8n webhook topics and workflow starter
 
-View your app in AI Studio: https://ai.studio/apps/63d6221e-240b-4230-a886-ec6ed0c67303
+## Main Features
+
+- Organiser, student, volunteer, and admin dashboards
+- AI-generated registration forms and agendas
+- Random/conflict-free panel allocation
+- QR attendance and live monitoring workflows
+- Certificate generation, verification, and dispatch flows
+- Analytics and AI recommendations
+- n8n webhook endpoints and workflow starter
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+Prerequisites: Node.js and PostgreSQL.
 
+```bash
+npm install
+npm run dev
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Open `http://localhost:3000`.
+
+## Environment
+
+Create `.env.local` from `.env.example`, then set:
+
+```env
+GEMINI_API_KEY="MY_GEMINI_API_KEY"
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ai_event_organiser"
+APP_URL="http://localhost:3000"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+N8N_BASE_URL="http://localhost:5678"
+N8N_WEBHOOK_SECRET="change_me"
+```
+
+## PostgreSQL
+
+Apply the starter schema:
+
+```bash
+psql "$DATABASE_URL" -f database/schema.sql
+```
+
+The app still includes local demo data for the UI, while the backend schema is ready for persisted users, events, registrations, certificates, audit logs, notifications, n8n receipts, and automation runs.
+
+## n8n Automations
+
+- Use `GET /api/n8n/blueprints` for topics and sample payloads.
+- Import `n8n/workflows/event-automation-starter.json` into n8n as a starting workflow.
+- See `docs/n8n-automations.md` for endpoint details and automation ideas.
+
+## Flutter
+
+The Flutter companion app lives in `mobile/flutter_app` and reads the Next.js REST API.
+
+```bash
+cd mobile/flutter_app
+flutter pub get
+flutter run --dart-define=API_BASE_URL=http://localhost:3000
+```
