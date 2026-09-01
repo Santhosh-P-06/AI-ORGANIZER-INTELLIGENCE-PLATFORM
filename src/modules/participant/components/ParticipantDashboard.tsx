@@ -74,7 +74,14 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
 
   const handleOpenRegistration = (event: EventItem) => {
     setSelectedEventForReg(event);
-    setFormResponses({});
+    setFormResponses({
+      f_name: currentUser?.name || '',
+      f_roll: currentUser?.studentRollNo || '',
+      f_email: currentUser?.email || '',
+      f_phone: currentUser?.phone || '',
+      f_dept: currentUser?.department || 'Computer Science & Engineering',
+      f_year: currentUser?.year || '4th Year (Senior)',
+    });
     setRegError(null);
     setRegSuccess(null);
   };
@@ -83,16 +90,20 @@ export const ParticipantDashboard: React.FC<ParticipantDashboardProps> = ({
     e.preventDefault();
     if (!selectedEventForReg) return;
 
+    const submittedRoll = formResponses.f_roll || formResponses.rollNumber || currentUser?.studentRollNo;
+    const submittedName = formResponses.f_name || formResponses.studentName || currentUser?.name;
+    const submittedEmail = formResponses.f_email || formResponses.email || currentUser?.email;
+
     const res = registerStudent(
       selectedEventForReg.id,
       {
-        studentName: currentUser?.name,
-        rollNumber: currentUser?.studentRollNo,
-        email: currentUser?.email,
-        phone: currentUser?.phone,
-        department: currentUser?.department,
-        year: currentUser?.year,
-        section: currentUser?.section,
+        studentName: submittedName,
+        rollNumber: submittedRoll,
+        email: submittedEmail,
+        phone: formResponses.f_phone || currentUser?.phone,
+        department: formResponses.f_dept || currentUser?.department,
+        year: formResponses.f_year || currentUser?.year,
+        section: formResponses.f_section || currentUser?.section,
       },
       formResponses
     );

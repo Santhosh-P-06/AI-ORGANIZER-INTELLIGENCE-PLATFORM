@@ -105,6 +105,20 @@ export const RandomAllocationEngine: React.FC<RandomAllocationEngineProps> = ({ 
     updateEventPanels(event.id, panels);
     setPublished(true);
     confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+
+    // Dispatch backend API request to trigger n8n panel allocation webhooks
+    fetch('/api/allocations/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventId: event.id,
+        eventTitle: event.title,
+        allocations,
+        registrations,
+      }),
+    }).catch((err) => {
+      console.error('[PanelAllocation] Failed to trigger panel allocation backend API:', err);
+    });
   };
 
   // Inline editing

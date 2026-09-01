@@ -406,7 +406,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Check duplicate roll number
-    const rollNo = studentData.rollNumber || currentUser?.studentRollNo || '21CS042';
+    const rollNo =
+      studentData.rollNumber ||
+      customResponses?.f_roll ||
+      customResponses?.rollNumber ||
+      customResponses?.f_roll_no ||
+      currentUser?.studentRollNo ||
+      `ROLL_${Date.now()}`;
     const duplicate = eventRegs.find(r => r.rollNumber?.toLowerCase() === rollNo.toLowerCase());
     if (duplicate) {
       return { success: false, message: `Roll number ${rollNo} is already registered for this event.` };
@@ -417,9 +423,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: regId,
       eventId,
       studentId: currentUser?.id || `stu_${Date.now()}`,
-      studentName: studentData.studentName || currentUser?.name || 'Registered Student',
+      studentName: customResponses?.f_name || studentData.studentName || currentUser?.name || 'Registered Student',
       rollNumber: rollNo,
-      email: studentData.email || currentUser?.email || 'student@college.edu',
+      email: customResponses?.f_email || customResponses?.email || studentData.email || currentUser?.email || 'student@college.edu',
       phone: studentData.phone || currentUser?.phone || '+91 99000 11223',
       department: studentData.department || currentUser?.department || 'Computer Science & Engineering',
       year: studentData.year || currentUser?.year || '3rd Year (Junior)',
@@ -449,6 +455,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setRegistrations(prev => [newReg, ...prev]);
     addAuditLog('Student Registration', `Student ${newReg.studentName} (${newReg.rollNumber}) registered for ${targetEvent.title}`, 'EVENT');
+
+    // Send registration to backend API so n8n webhook can be triggered
+    // This is fire-and-forget: UI registration succeeds regardless of backend/n8n status
+    fetch('/api/registrations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...newReg,
+        eventTitle: targetEvent.title,
+        eventDate: targetEvent.date,
+        eventVenue: targetEvent.venue,
+        agenda: targetEvent.agenda || [],
+      }),
+    }).catch((err) => {
+      console.error('[Registration] Backend API call failed (n8n notification may not be sent):', err);
+    });
 
     // Notify student
     const notif: NotificationItem = {
