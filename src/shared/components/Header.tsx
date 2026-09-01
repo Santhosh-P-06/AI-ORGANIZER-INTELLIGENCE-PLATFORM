@@ -152,14 +152,16 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Verify Certificate */}
-          <button
-            onClick={onOpenVerification}
-            style={{ ...btnStyle, padding: '8px 14px', gap: '6px' }}
-          >
-            <Award style={{ width: '14px', height: '14px', color: '#d97706' }} />
-            <span style={{ fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>Verify Cert</span>
-          </button>
+          {/* Verify Certificate (Hidden on Organiser view) */}
+          {currentRole !== 'ORGANISER' && (
+            <button
+              onClick={onOpenVerification}
+              style={{ ...btnStyle, padding: '8px 14px', gap: '6px' }}
+            >
+              <Award style={{ width: '14px', height: '14px', color: '#d97706' }} />
+              <span style={{ fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>Verify Cert</span>
+            </button>
+          )}
 
           {/* Role Badge */}
           {currentUser && (
