@@ -9,6 +9,7 @@ export interface User {
   avatar?: string;
   phone?: string;
   studentRollNo?: string;
+  volunteerId?: string;
   year?: string;
   section?: string;
   adminId?: string;

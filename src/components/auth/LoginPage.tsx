@@ -41,8 +41,7 @@ const ROLES: {
 }[] = [
   { value: 'STUDENT',   label: 'Student',   icon: GraduationCap, desc: 'Participant portal',      color: '#0284c7', bg: 'rgba(2,132,199,0.12)' },
   { value: 'ORGANISER', label: 'Organiser', icon: Calendar,      desc: 'Event control center',    color: '#4f46e5', bg: 'rgba(79,70,229,0.12)' },
-  { value: 'VOLUNTEER', label: 'Volunteer', icon: UserCheck,     desc: 'Attendance & QR hub',     color: '#059669', bg: 'rgba(5,150,105,0.12)' },
-  { value: 'ADMIN',     label: 'Admin',     icon: Shield,        desc: 'Institutional control',   color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
+  { value: 'VOLUNTEER', label: 'Volunteer', icon: UserCheck,     desc: 'Attendance & check-in hub', color: '#059669', bg: 'rgba(5,150,105,0.12)' },
 ];
 
 const FEATURES = [
@@ -581,7 +580,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
           </div>
 
           {/* Quick Access */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
             {ROLES.map(({ value, label, icon: Icon, color, bg }) => (
               <button
                 key={value}

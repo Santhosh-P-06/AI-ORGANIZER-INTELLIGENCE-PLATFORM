@@ -47,15 +47,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   if (!isOpen) return null;
 
   const configs: Record<UserRole, { title: string; subtitle: string; fieldLabel: string; placeholder: string; icon: any; defaultUser: string; color: string; bg: string; features: string[] }> = {
-    STUDENT:   { title: 'Student Portal Sign In',       subtitle: 'Browse events, generate QR passes, download certificates', fieldLabel: 'College Email / Roll Number', placeholder: 'student@college.edu or 21CS042', icon: GraduationCap, defaultUser: '21CS042',              color: '#0284c7', bg: 'rgba(2,132,199,0.10)',   features: ['Event Registration','Dynamic QR Badges','Live Schedules','E-Certificates'] },
-    ORGANISER: { title: 'Organiser Control Center',     subtitle: 'Create events, generate AI agendas, manage jury panels',  fieldLabel: 'Faculty Email / Organiser ID', placeholder: 'organiser@college.edu',      icon: Calendar,      defaultUser: 'organiser@college.edu', color: '#4f46e5', bg: 'rgba(79,70,229,0.10)',  features: ['AI Agenda Scheduling','Smart Form Builder','Panel Allocation','Live Tracking'] },
-    VOLUNTEER: { title: 'Volunteer Operations Hub',     subtitle: 'Fast QR scanning, attendance check-ins, round monitoring',fieldLabel: 'Volunteer Email / Roll No',    placeholder: 'volunteer@college.edu',      icon: UserCheck,     defaultUser: 'volunteer@college.edu', color: '#059669', bg: 'rgba(5,150,105,0.10)',  features: ['QR Scanner','Arrival Logging','Roster View','Round Updates'] },
+    STUDENT:   { title: 'Student Portal Sign In',       subtitle: 'Browse events, generate passes, download certificates', fieldLabel: 'College Email / Roll Number', placeholder: 'student@college.edu or 21CS042', icon: GraduationCap, defaultUser: '21CS042',              color: '#0284c7', bg: 'rgba(2,132,199,0.10)',   features: ['Event Registration','Dynamic Badges','Live Schedules','E-Certificates'] },
+    ORGANISER: { title: 'Organiser Control Center',     subtitle: 'Create events, generate AI agendas, manage user roles',  fieldLabel: 'Faculty Email / Organiser ID', placeholder: 'organiser@college.edu',      icon: Calendar,      defaultUser: 'organiser@college.edu', color: '#4f46e5', bg: 'rgba(79,70,229,0.10)',  features: ['AI Agenda Scheduling','User Roles Management','Panel Allocation','Live Tracking'] },
+    VOLUNTEER: { title: 'Volunteer Operations Hub',     subtitle: 'Attendance check-ins, roster review, round monitoring',fieldLabel: 'Volunteer Email / Roll No',    placeholder: 'volunteer@college.edu',      icon: UserCheck,     defaultUser: 'volunteer@college.edu', color: '#059669', bg: 'rgba(5,150,105,0.10)',  features: ['Attendance Logging','Duty Station Check-in','Roster View','Round Updates'] },
     ADMIN:     { title: 'Institutional Administration', subtitle: 'System auditing, quota governance, access control',       fieldLabel: 'Administrator ID / Email',    placeholder: 'ADM-101 or admin@college.edu',icon: Shield,       defaultUser: 'ADM-101',              color: '#d97706', bg: 'rgba(217,119,6,0.10)',  features: ['User Management','Audit Logs','Metrics','Access Control'] },
   };
 
   const quickNames: Record<UserRole, string> = {
     STUDENT: 'Rahul K • 21CS042', ORGANISER: 'Prof. Rajesh • CSE Lead',
-    VOLUNTEER: 'Priya V • QR Lead', ADMIN: 'Dr. Vance • Dean',
+    VOLUNTEER: 'Priya V • IT Lead', ADMIN: 'Dr. Vance • Dean',
   };
   const quickEmoji: Record<UserRole, string> = { STUDENT: '🎓', ORGANISER: '📅', VOLUNTEER: '🤝', ADMIN: '🛡️' };
 
@@ -143,12 +143,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Role Tabs */}
           <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px',
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px',
             padding: '5px', borderRadius: '14px',
             background: isDark ? 'rgba(8,12,20,0.6)' : 'rgba(255,255,255,0.7)',
             border: `1px solid ${border}`,
           }}>
-            {(['STUDENT','ORGANISER','VOLUNTEER','ADMIN'] as UserRole[]).map((r) => {
+            {(['STUDENT','ORGANISER','VOLUNTEER'] as UserRole[]).map((r) => {
               const c = configs[r]; const Icon = c.icon; const sel = selectedRole === r;
               return (
                 <button key={r} type="button"
@@ -164,7 +164,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 >
                   <Icon style={{ width: '16px', height: '16px' }} />
                   <span style={{ fontSize: '10px', lineHeight: 1 }}>
-                    {r === 'ORGANISER' ? 'Organiser' : r === 'VOLUNTEER' ? 'Volunteer' : r === 'STUDENT' ? 'Student' : 'Admin'}
+                    {r === 'ORGANISER' ? 'Organiser' : r === 'VOLUNTEER' ? 'Volunteer' : 'Student'}
                   </span>
                 </button>
               );
@@ -295,8 +295,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 One-Click Instant Launch
               </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              {(['STUDENT','ORGANISER','VOLUNTEER','ADMIN'] as UserRole[]).map((r) => {
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+              {(['STUDENT','ORGANISER','VOLUNTEER'] as UserRole[]).map((r) => {
                 const c = configs[r];
                 return (
                   <button key={r} type="button"

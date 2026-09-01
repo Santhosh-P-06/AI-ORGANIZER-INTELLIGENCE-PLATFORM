@@ -42,7 +42,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth, onOpenVeri
     { role: 'ORGANISER' as UserRole, title: 'Organiser Control Center', icon: Calendar,      color: '#4f46e5', bg: 'rgba(79,70,229,0.08)',  border: 'rgba(79,70,229,0.20)' },
     { role: 'VOLUNTEER' as UserRole, title: 'Volunteer Duty Hub',       icon: UserCheck,     color: '#059669', bg: 'rgba(5,150,105,0.08)',  border: 'rgba(5,150,105,0.20)' },
     { role: 'STUDENT'   as UserRole, title: 'Participant Portal',       icon: GraduationCap, color: '#0284c7', bg: 'rgba(2,132,199,0.08)',  border: 'rgba(2,132,199,0.20)' },
-    { role: 'ADMIN'     as UserRole, title: 'Institutional Admin',      icon: Shield,        color: '#d97706', bg: 'rgba(217,119,6,0.08)',  border: 'rgba(217,119,6,0.20)' },
   ];
 
   const features = [

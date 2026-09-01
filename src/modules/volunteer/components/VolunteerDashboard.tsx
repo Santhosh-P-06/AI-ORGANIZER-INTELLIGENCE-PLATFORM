@@ -29,6 +29,10 @@ import {
   ChevronUp,
   X,
   Calendar,
+  IdCard,
+  Lock,
+  KeyRound,
+  Edit2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -42,6 +46,7 @@ export const VolunteerDashboard: React.FC = () => {
     markParticipantAttendance,
     replaceTeamMember,
     updateRoundTracking,
+    updateVolunteerAssignments,
   } = useApp();
 
   const { theme } = useTheme();
@@ -49,8 +54,12 @@ export const VolunteerDashboard: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'ATTENDANCE' | 'INCOMPLETE_TEAMS' | 'ROUNDS' | 'SCHEDULE'>('ATTENDANCE');
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'ABSENT' | 'LATE' | 'INCOMPLETE' | 'REPLACED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'ABSENT' | 'INCOMPLETE' | 'REPLACED'>('ALL');
   const [expandedTeams, setExpandedTeams] = useState<Record<string, boolean>>({});
+
+  // Editing state: controls whether a row is in edit mode
+  const [editingTeamIds, setEditingTeamIds] = useState<Record<string, boolean>>({});
+  const [editingMemberIds, setEditingMemberIds] = useState<Record<string, boolean>>({});
 
   // Replacement Modal State
   const [replacingReg, setReplacingReg] = useState<Registration | null>(null);
@@ -66,32 +75,37 @@ export const VolunteerDashboard: React.FC = () => {
   const [replaceError, setReplaceError] = useState<string | null>(null);
   const [replaceSuccess, setReplaceSuccess] = useState<string | null>(null);
 
-  // Quick Action Feedback
+  // Quick Action Feedback Notice
   const [actionNotice, setActionNotice] = useState<{ id: string; text: string; type: 'success' | 'warn' } | null>(null);
+
+  // Self-Authorize with Volunteer ID
+  const [authIdInput, setAuthIdInput] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const activeEvent = events.find((e) => e.id === activeEventId) || events[0];
   const eventRegs = activeEvent ? registrations.filter((r) => r.eventId === activeEvent.id) : [];
 
-  // Find volunteer assignment in this event
+  // Volunteer's private ID
+  const myVolunteerId = currentUser?.volunteerId || (currentUser?.email === 'volunteer@college.edu' ? 'VOL-7821' : 'VOL-9142');
+
+  // Check if current volunteer is officially assigned to this event
   const myAssignment = activeEvent?.volunteerAssignments?.find(
     (va) =>
+      va.volunteerId?.toUpperCase() === myVolunteerId.toUpperCase() ||
       va.volunteerEmail?.toLowerCase() === currentUser?.email?.toLowerCase() ||
-      va.volunteerName?.toLowerCase() === currentUser?.name?.toLowerCase()
-  ) || {
-    role: 'Participant Attendance & Check-In Desk Lead',
-    assignedLocation: 'Auditorium Main Entry Gate',
-    timeSlot: '08:30 AM - 01:00 PM',
-    status: 'CHECKED_IN',
-  };
+      va.volunteerName?.toLowerCase() === currentUser?.name?.toLowerCase() ||
+      va.volunteerId === currentUser?.id
+  );
+
+  const isAuthorized = Boolean(myAssignment);
 
   // Stats calculation
   const totalCount = eventRegs.length;
-  const presentCount = eventRegs.filter((r) => r.attendance?.attended && r.attendance?.status !== 'LATE').length;
-  const lateCount = eventRegs.filter((r) => r.attendance?.status === 'LATE').length;
+  const presentCount = eventRegs.filter((r) => r.attendance?.attended).length;
   const absentCount = eventRegs.filter((r) => !r.attendance?.attended).length;
   const replacedCount = eventRegs.reduce((acc, r) => acc + (r.replacementHistory?.length || 0), 0);
   const incompleteTeams = eventRegs.filter((r) => r.teamEligibility === 'INCOMPLETE_TEAM');
-  const attendanceRate = totalCount > 0 ? Math.round(((presentCount + lateCount) / totalCount) * 100) : 0;
+  const attendanceRate = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
 
   const toggleExpand = (regId: string) => {
     setExpandedTeams((prev) => ({ ...prev, [regId]: !prev[regId] }));
@@ -99,18 +113,54 @@ export const VolunteerDashboard: React.FC = () => {
 
   const handleMarkStatus = (regId: string, status: AttendanceStatus, memberId?: string, memberName?: string) => {
     markParticipantAttendance(regId, status, memberId);
-    
-    if (status === 'PRESENT' || status === 'LATE') {
+
+    // Automatically close edit mode after marking
+    if (memberId) {
+      setEditingMemberIds((prev) => ({ ...prev, [memberId]: false }));
+    } else {
+      setEditingTeamIds((prev) => ({ ...prev, [regId]: false }));
+    }
+
+    if (status === 'PRESENT') {
       confetti({ particleCount: 30, spread: 50, origin: { y: 0.7 } });
     }
 
     setActionNotice({
       id: regId,
-      text: `${memberName ? `${memberName} marked` : 'Marked'} ${status}`,
-      type: status === 'PRESENT' || status === 'LATE' ? 'success' : 'warn',
+      text: `${memberName ? `${memberName} marked` : 'Team marked'} ${status === 'PRESENT' ? 'Present ✓' : 'Absent ✕'}`,
+      type: status === 'PRESENT' ? 'success' : 'warn',
     });
 
     setTimeout(() => setActionNotice(null), 3000);
+  };
+
+  const handleSelfAuthorize = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authIdInput.trim() || !activeEvent) return;
+
+    const code = authIdInput.trim().toUpperCase();
+    if (code === myVolunteerId.toUpperCase() || code.startsWith('VOL-')) {
+      const newAss: any = {
+        id: `va_${Date.now()}`,
+        volunteerId: code,
+        volunteerName: currentUser?.name || 'Volunteer Coordinator',
+        volunteerEmail: currentUser?.email || 'volunteer@college.edu',
+        role: 'Attendance & QR Verification',
+        location: 'Main Foyer Check-in Station',
+        assignedLocation: 'Main Foyer Check-in Station',
+        timeSlot: `${activeEvent.startTime} - ${activeEvent.endTime}`,
+        status: 'CHECKED_IN',
+        notes: `Authorized via Private Volunteer ID ${code}`,
+      };
+
+      const updated = [newAss, ...(activeEvent.volunteerAssignments || [])];
+      updateVolunteerAssignments(activeEvent.id, updated);
+      setAuthIdInput('');
+      setAuthError(null);
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } });
+    } else {
+      setAuthError('Invalid Volunteer ID format. Must begin with VOL- (e.g. VOL-7821).');
+    }
   };
 
   const openReplaceModal = (reg: Registration, member: TeamMember) => {
@@ -154,6 +204,9 @@ export const VolunteerDashboard: React.FC = () => {
 
     if (result.success) {
       setReplaceSuccess(result.message);
+      if (replacingMember) {
+        setEditingMemberIds((prev) => ({ ...prev, [replacingMember.id]: false }));
+      }
       confetti({ particleCount: 60, spread: 70, origin: { y: 0.5 } });
       setTimeout(() => {
         setReplacingReg(null);
@@ -174,8 +227,7 @@ export const VolunteerDashboard: React.FC = () => {
 
     if (!matchesSearch) return false;
 
-    if (statusFilter === 'PRESENT') return r.attendance?.attended && r.attendance?.status !== 'LATE';
-    if (statusFilter === 'LATE') return r.attendance?.status === 'LATE';
+    if (statusFilter === 'PRESENT') return r.attendance?.attended;
     if (statusFilter === 'ABSENT') return !r.attendance?.attended;
     if (statusFilter === 'INCOMPLETE') return r.teamEligibility === 'INCOMPLETE_TEAM';
     if (statusFilter === 'REPLACED') return (r.replacementHistory?.length || 0) > 0;
@@ -190,30 +242,42 @@ export const VolunteerDashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider" style={{ backgroundColor: 'var(--role-volunteer-bg)', color: 'var(--role-volunteer-color)', border: `1px solid ${isDark ? 'rgba(5,150,105,0.3)' : 'rgba(5,150,105,0.2)'}` }}>
                   Volunteer Operations Desk
                 </span>
                 <span className="text-xs text-slate-400">•</span>
                 <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{currentUser?.name}</span>
-                {activeEvent?.isRosterFinalized && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Roster Finalized
+
+                {/* Private Volunteer ID Badge */}
+                <span className="px-2.5 py-0.5 rounded-md font-mono text-[11px] font-bold bg-indigo-500/10 text-indigo-600 border border-indigo-500/30 flex items-center gap-1">
+                  <IdCard className="w-3.5 h-3.5" /> Private ID: {myVolunteerId}
+                </span>
+
+                {isAuthorized ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" /> Assigned & Authorized
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/30 flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Unassigned for this Event
                   </span>
                 )}
               </div>
+
               <h1 className="text-2xl sm:text-3xl font-display font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-                {activeEvent?.title || 'Collegiate Event Attendance Hub'}
+                {activeEvent?.title || 'Event Attendance Hub'}
               </h1>
+
               <div className="flex flex-wrap items-center gap-4 text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
                 <span className="flex items-center gap-1 font-semibold" style={{ color: 'var(--role-volunteer-color)' }}>
-                  <MapPin className="w-3.5 h-3.5" /> Station: {myAssignment.assignedLocation}
+                  <MapPin className="w-3.5 h-3.5" /> Station: {myAssignment?.assignedLocation || 'Entrance Check-in Desk'}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-sky-500" /> Slot: {myAssignment.timeSlot}
+                  <Clock className="w-3.5 h-3.5 text-sky-500" /> Slot: {myAssignment?.timeSlot || '08:30 AM - 01:00 PM'}
                 </span>
                 <span className="flex items-center gap-1">
-                  <UserCheck className="w-3.5 h-3.5 text-indigo-500" /> Active Present: {presentCount + lateCount} / {totalCount} ({attendanceRate}%)
+                  <UserCheck className="w-3.5 h-3.5 text-indigo-500" /> Active Present: {presentCount} / {totalCount} ({attendanceRate}%)
                 </span>
               </div>
             </div>
@@ -239,6 +303,7 @@ export const VolunteerDashboard: React.FC = () => {
           {/* Navigation Tabs Bar */}
           <div className="flex items-center gap-2 mt-6 border-t pt-4 overflow-x-auto" style={{ borderColor: 'var(--border-default)' }}>
             <button
+              type="button"
               onClick={() => setActiveTab('ATTENDANCE')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'ATTENDANCE'
@@ -252,6 +317,7 @@ export const VolunteerDashboard: React.FC = () => {
             </button>
 
             <button
+              type="button"
               onClick={() => { setActiveTab('INCOMPLETE_TEAMS'); setStatusFilter('INCOMPLETE'); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'INCOMPLETE_TEAMS'
@@ -261,10 +327,11 @@ export const VolunteerDashboard: React.FC = () => {
               style={{ color: activeTab === 'INCOMPLETE_TEAMS' ? '#ffffff' : 'var(--text-secondary)' }}
             >
               <AlertTriangle className="w-4 h-4 text-amber-400" />
-              <span>Incomplete Teams ({incompleteTeams.length})</span>
+              <span>Incomplete Squads ({incompleteTeams.length})</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('ROUNDS')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'ROUNDS'
@@ -274,10 +341,11 @@ export const VolunteerDashboard: React.FC = () => {
               style={{ color: activeTab === 'ROUNDS' ? '#ffffff' : 'var(--text-secondary)' }}
             >
               <Activity className="w-4 h-4" />
-              <span>Round Stage Tracking</span>
+              <span>Round Stage Evaluation</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('SCHEDULE')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'SCHEDULE'
@@ -287,7 +355,7 @@ export const VolunteerDashboard: React.FC = () => {
               style={{ color: activeTab === 'SCHEDULE' ? '#ffffff' : 'var(--text-secondary)' }}
             >
               <Calendar className="w-4 h-4" />
-              <span>Event Timeline & Roster Info</span>
+              <span>Timeline & Assignment</span>
             </button>
           </div>
         </div>
@@ -296,59 +364,89 @@ export const VolunteerDashboard: React.FC = () => {
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
 
+        {/* Access Verification Alert if not assigned */}
+        {!isAuthorized && (
+          <div className="p-5 rounded-3xl border bg-amber-500/10 border-amber-500/30 text-xs space-y-3">
+            <div className="flex items-start gap-3">
+              <KeyRound className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-sm text-amber-600">
+                  Volunteer Assignment Authorization Notice
+                </h4>
+                <p className="text-slate-400 mt-0.5 leading-relaxed">
+                  Your Private Volunteer ID (<strong>{myVolunteerId}</strong>) has not been assigned to <strong>{activeEvent.title}</strong> yet. The event organiser can assign you from the Volunteer Management panel, or you can self-authorize below.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSelfAuthorize} className="flex flex-col sm:flex-row items-stretch gap-2 max-w-md">
+              <input
+                type="text"
+                value={authIdInput}
+                onChange={(e) => setAuthIdInput(e.target.value)}
+                placeholder="Enter Private Volunteer ID (e.g. VOL-7821)..."
+                className="flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none font-mono"
+                style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs cursor-pointer shadow-md"
+              >
+                Authorize Check-In Desk
+              </button>
+            </form>
+
+            {authError && <p className="text-rose-500 font-semibold">{authError}</p>}
+          </div>
+        )}
+
         {/* Real-time KPI Stats Ribbon */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="p-3.5 rounded-2xl border transition-all" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="p-4 rounded-2xl border transition-all" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
             <div className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Total Enrolled</div>
-            <div className="text-xl font-bold font-display mt-0.5" style={{ color: 'var(--text-primary)' }}>{totalCount}</div>
-            <div className="text-[10px] text-slate-400">All registered</div>
+            <div className="text-2xl font-bold font-display mt-0.5" style={{ color: 'var(--text-primary)' }}>{totalCount}</div>
+            <div className="text-[10px] text-slate-400">All registered squads</div>
           </div>
 
-          <div className="p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
-            <div className="text-[11px] font-semibold text-emerald-500">Present (On-Time)</div>
-            <div className="text-xl font-bold font-display text-emerald-500 mt-0.5">{presentCount}</div>
-            <div className="text-[10px] text-slate-400">Checked in</div>
+          <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+            <div className="text-[11px] font-semibold text-emerald-500">Present (Checked In)</div>
+            <div className="text-2xl font-bold font-display text-emerald-500 mt-0.5">{presentCount}</div>
+            <div className="text-[10px] text-slate-400">Verified on active roster</div>
           </div>
 
-          <div className="p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
-            <div className="text-[11px] font-semibold text-amber-500">Late Arrivals</div>
-            <div className="text-xl font-bold font-display text-amber-500 mt-0.5">{lateCount}</div>
-            <div className="text-[10px] text-slate-400">Marked late</div>
-          </div>
-
-          <div className="p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+          <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
             <div className="text-[11px] font-semibold text-rose-500">Absent / No-Show</div>
-            <div className="text-xl font-bold font-display text-rose-500 mt-0.5">{absentCount}</div>
-            <div className="text-[10px] text-slate-400">Unreported</div>
+            <div className="text-2xl font-bold font-display text-rose-500 mt-0.5">{absentCount}</div>
+            <div className="text-[10px] text-slate-400">Unreported attendees</div>
           </div>
 
-          <div className="p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+          <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
             <div className="text-[11px] font-semibold text-indigo-500">Replaced Members</div>
-            <div className="text-xl font-bold font-display text-indigo-500 mt-0.5">{replacedCount}</div>
-            <div className="text-[10px] text-slate-400">Substitutions</div>
+            <div className="text-2xl font-bold font-display text-indigo-500 mt-0.5">{replacedCount}</div>
+            <div className="text-[10px] text-slate-400">Official substitutions</div>
           </div>
 
-          <div className="p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
+          <div className="p-4 rounded-2xl border" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
             <div className="text-[11px] font-semibold text-sky-500">Attendance Rate</div>
-            <div className="text-xl font-bold font-display text-sky-500 mt-0.5">{attendanceRate}%</div>
-            <div className="text-[10px] text-slate-400">Eligible ratio</div>
+            <div className="text-2xl font-bold font-display text-sky-500 mt-0.5">{attendanceRate}%</div>
+            <div className="text-[10px] text-slate-400">Eligible participant ratio</div>
           </div>
         </div>
 
         {/* Global Action Feedback Notice */}
         {actionNotice && (
           <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center justify-between border animate-fade-in ${
-            actionNotice.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' : 'bg-amber-500/10 text-amber-600 border-amber-500/30'
+            actionNotice.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' : 'bg-rose-500/10 text-rose-600 border-rose-500/30'
           }`}>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4" />
               <span>{actionNotice.text}</span>
             </div>
-            <span className="text-[10px] opacity-70">Audit logged in system</span>
+            <span className="text-[10px] opacity-70">Audit synchronized</span>
           </div>
         )}
 
-        {/* TAB 1: PARTICIPANT ATTENDANCE ROSTER & CHECK-IN DESK */}
+        {/* TAB 1: PARTICIPANT ATTENDANCE ROSTER */}
         {(activeTab === 'ATTENDANCE' || activeTab === 'INCOMPLETE_TEAMS') && (
           <div className="space-y-4">
             {/* Search & Filter Bar */}
@@ -374,13 +472,13 @@ export const VolunteerDashboard: React.FC = () => {
                 {[
                   { key: 'ALL', label: 'All Roster' },
                   { key: 'PRESENT', label: `Present (${presentCount})` },
-                  { key: 'LATE', label: `Late (${lateCount})` },
                   { key: 'ABSENT', label: `Absent (${absentCount})` },
-                  { key: 'INCOMPLETE', label: `Incomplete Teams (${incompleteTeams.length})` },
+                  { key: 'INCOMPLETE', label: `Incomplete Squads (${incompleteTeams.length})` },
                   { key: 'REPLACED', label: `Replaced (${replacedCount})` },
                 ].map((chip) => (
                   <button
                     key={chip.key}
+                    type="button"
                     onClick={() => setStatusFilter(chip.key as any)}
                     className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
                       statusFilter === chip.key
@@ -410,6 +508,9 @@ export const VolunteerDashboard: React.FC = () => {
               ) : (
                 filteredRegs.map((reg) => {
                   const isExpanded = Boolean(expandedTeams[reg.id]);
+                  const isTeamEditing = Boolean(editingTeamIds[reg.id]);
+                  const isAttended = Boolean(reg.attendance?.attended);
+
                   const members = reg.membersList || [
                     {
                       id: `single_${reg.id}`,
@@ -420,7 +521,7 @@ export const VolunteerDashboard: React.FC = () => {
                       department: reg.department,
                       year: reg.year,
                       section: reg.section,
-                      attendanceStatus: reg.attendance?.status || (reg.attendance?.attended ? 'PRESENT' : 'ABSENT'),
+                      attendanceStatus: isAttended ? 'PRESENT' : 'ABSENT',
                       isActive: true,
                       isLead: true,
                     },
@@ -428,8 +529,8 @@ export const VolunteerDashboard: React.FC = () => {
 
                   const isTeam = Boolean(reg.teamName && members.length > 1);
                   const activeMembers = members.filter((m) => m.attendanceStatus !== 'REPLACED' && m.attendanceStatus !== 'WITHDRAWN');
-                  const presentMembers = activeMembers.filter((m) => m.attendanceStatus === 'PRESENT' || m.attendanceStatus === 'LATE');
-                  const teamAttended = reg.attendance?.attended;
+                  const presentMemberCount = activeMembers.filter((m) => m.attendanceStatus === 'PRESENT').length;
+                  const totalMemberCount = activeMembers.length;
 
                   return (
                     <div
@@ -439,7 +540,7 @@ export const VolunteerDashboard: React.FC = () => {
                         backgroundColor: 'var(--surface-base)',
                         borderColor: reg.teamEligibility === 'INCOMPLETE_TEAM'
                           ? 'rgba(217,119,6,0.35)'
-                          : teamAttended
+                          : isAttended
                           ? 'rgba(5,150,105,0.25)'
                           : 'var(--border-default)',
                       }}
@@ -450,9 +551,9 @@ export const VolunteerDashboard: React.FC = () => {
                           <div
                             className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0"
                             style={{
-                              backgroundColor: teamAttended ? 'rgba(5,150,105,0.12)' : 'rgba(239,68,68,0.12)',
-                              color: teamAttended ? '#059669' : '#ef4444',
-                              border: `1px solid ${teamAttended ? 'rgba(5,150,105,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                              backgroundColor: isAttended ? 'rgba(5,150,105,0.12)' : 'rgba(239,68,68,0.12)',
+                              color: isAttended ? '#059669' : '#ef4444',
+                              border: `1px solid ${isAttended ? 'rgba(5,150,105,0.25)' : 'rgba(239,68,68,0.25)'}`,
                             }}
                           >
                             {isTeam ? <Users className="w-5 h-5" /> : <UserCheck className="w-5 h-5" />}
@@ -460,28 +561,46 @@ export const VolunteerDashboard: React.FC = () => {
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                              <span className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>
                                 {reg.teamName || reg.studentName}
                               </span>
 
-                              {isTeam && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 border border-indigo-500/30">
-                                  Team • {activeMembers.length} Members
-                                </span>
-                              )}
+                              {/* 3/4 Present Indication Badge */}
+                              <span
+                                className="px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 border shadow-xs"
+                                style={{
+                                  backgroundColor:
+                                    presentMemberCount === totalMemberCount && totalMemberCount > 0
+                                      ? 'rgba(5,150,105,0.15)'
+                                      : presentMemberCount > 0
+                                      ? 'rgba(217,119,6,0.15)'
+                                      : 'rgba(239,68,68,0.15)',
+                                  color:
+                                    presentMemberCount === totalMemberCount && totalMemberCount > 0
+                                      ? '#059669'
+                                      : presentMemberCount > 0
+                                      ? '#d97706'
+                                      : '#ef4444',
+                                  borderColor:
+                                    presentMemberCount === totalMemberCount && totalMemberCount > 0
+                                      ? 'rgba(5,150,105,0.3)'
+                                      : presentMemberCount > 0
+                                      ? 'rgba(217,119,6,0.3)'
+                                      : 'rgba(239,68,68,0.3)',
+                                }}
+                              >
+                                {presentMemberCount === totalMemberCount && totalMemberCount > 0 ? (
+                                  <Check className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Users className="w-3.5 h-3.5" />
+                                )}
+                                <span>{presentMemberCount}/{totalMemberCount} Present</span>
+                              </span>
 
-                              {/* Eligibility Badge */}
-                              {reg.teamEligibility === 'INCOMPLETE_TEAM' ? (
+                              {/* Squad Eligibility Badge */}
+                              {reg.teamEligibility === 'INCOMPLETE_TEAM' && (
                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/30 flex items-center gap-1">
-                                  <AlertTriangle className="w-3 h-3" /> Incomplete Squad ({presentMembers.length}/{activeEvent.teamSizeMin || 2} Present)
-                                </span>
-                              ) : teamAttended ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3" /> {reg.attendance?.status === 'LATE' ? 'Late Arrival' : 'Verified Present'}
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 border border-rose-500/30 flex items-center gap-1">
-                                  <XCircle className="w-3 h-3" /> Absent / No-Show
+                                  <AlertTriangle className="w-3 h-3" /> Incomplete (Min {activeEvent.teamSizeMin || 2} Req)
                                 </span>
                               )}
 
@@ -498,74 +617,85 @@ export const VolunteerDashboard: React.FC = () => {
                               <span>{reg.studentName} (Lead)</span>
                               <span>•</span>
                               <span>{reg.department}</span>
-                              {reg.attendance?.timestamp && (
+                              {reg.attendance?.timestamp && isAttended && (
                                 <>
                                   <span>•</span>
-                                  <span className="text-emerald-500">Checked in at {new Date(reg.attendance.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <span className="text-emerald-500 font-medium">Checked in at {new Date(reg.attendance.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                 </>
                               )}
                             </div>
                           </div>
                         </div>
 
-                        {/* Quick Action Controls */}
+                        {/* Attendance Action Controls */}
                         <div className="flex items-center gap-2 flex-wrap justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleMarkStatus(reg.id, 'PRESENT', undefined, reg.studentName)}
-                            className="px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                            style={{
-                              backgroundColor: reg.attendance?.status === 'PRESENT' ? '#059669' : 'rgba(5,150,105,0.12)',
-                              color: reg.attendance?.status === 'PRESENT' ? '#ffffff' : '#059669',
-                              border: `1px solid ${reg.attendance?.status === 'PRESENT' ? '#059669' : 'rgba(5,150,105,0.3)'}`,
-                            }}
-                            title="Mark entire team Present"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Present</span>
-                          </button>
+                          {isTeamEditing ? (
+                            /* EDIT MODE: Show Action buttons to mark Present / Absent / Members / Cancel */
+                            <div className="flex items-center gap-2 flex-wrap p-1.5 rounded-2xl border bg-slate-500/5 animate-fade-in" style={{ borderColor: 'var(--border-default)' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkStatus(reg.id, 'PRESENT', undefined, reg.studentName)}
+                                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-500 transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20"
+                              >
+                                <Check className="w-4 h-4" />
+                                <span>Present</span>
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleMarkStatus(reg.id, 'LATE', undefined, reg.studentName)}
-                            className="px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                            style={{
-                              backgroundColor: reg.attendance?.status === 'LATE' ? '#d97706' : 'rgba(217,119,6,0.12)',
-                              color: reg.attendance?.status === 'LATE' ? '#ffffff' : '#d97706',
-                              border: `1px solid ${reg.attendance?.status === 'LATE' ? '#d97706' : 'rgba(217,119,6,0.3)'}`,
-                            }}
-                            title="Mark Late Arrival"
-                          >
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>Late</span>
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkStatus(reg.id, 'ABSENT', undefined, reg.studentName)}
+                                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-500 transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-rose-600/20"
+                              >
+                                <X className="w-4 h-4" />
+                                <span>Absent</span>
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleMarkStatus(reg.id, 'ABSENT', undefined, reg.studentName)}
-                            className="px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                            style={{
-                              backgroundColor: !teamAttended ? '#ef4444' : 'rgba(239,68,68,0.12)',
-                              color: !teamAttended ? '#ffffff' : '#ef4444',
-                              border: `1px solid ${!teamAttended ? '#ef4444' : 'rgba(239,68,68,0.3)'}`,
-                            }}
-                            title="Mark Absent"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                            <span>Absent</span>
-                          </button>
+                              {isTeam && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpand(reg.id)}
+                                  className="px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold hover:bg-slate-500/10 cursor-pointer"
+                                  style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                                >
+                                  <span>{isExpanded ? 'Hide Members' : `Members (${presentMemberCount}/${totalMemberCount})`}</span>
+                                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </button>
+                              )}
 
-                          {isTeam && (
-                            <button
-                              type="button"
-                              onClick={() => toggleExpand(reg.id)}
-                              className="p-1.5 rounded-xl border flex items-center gap-1 text-xs font-semibold transition-colors cursor-pointer"
-                              style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
-                              title="Toggle individual members roster"
-                            >
-                              <span>{isExpanded ? 'Hide' : 'Members'}</span>
-                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingTeamIds((prev) => ({ ...prev, [reg.id]: false }))}
+                                className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            /* CLEAN MARKED MODE: Only show the marked status block + Edit button */
+                            <div className="flex items-center gap-2">
+                              {isAttended ? (
+                                <div className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white shadow-md shadow-emerald-600/25 flex items-center gap-1.5">
+                                  <Check className="w-4 h-4" />
+                                  <span>Present</span>
+                                </div>
+                              ) : (
+                                <div className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white shadow-md shadow-rose-600/25 flex items-center gap-1.5">
+                                  <X className="w-4 h-4" />
+                                  <span>Absent</span>
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => setEditingTeamIds((prev) => ({ ...prev, [reg.id]: true }))}
+                                className="px-3 py-2 rounded-xl border flex items-center gap-1.5 text-xs font-semibold hover:bg-slate-500/10 cursor-pointer transition-all"
+                                style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                                title="Click to edit attendance"
+                              >
+                                <Edit2 className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>Edit</span>
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -574,7 +704,7 @@ export const VolunteerDashboard: React.FC = () => {
                       {isTeam && isExpanded && (
                         <div className="p-4 border-t space-y-3" style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--surface-raised)' }}>
                           <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
-                            <span>Squad Members Roster & Substitution Controls</span>
+                            <span>Squad Members Individual Attendance ({presentMemberCount}/{totalMemberCount} Present)</span>
                             <span className="text-[11px] font-normal" style={{ color: 'var(--text-muted)' }}>
                               Minimum {activeEvent.teamSizeMin || 2} Present required for judging eligibility
                             </span>
@@ -583,7 +713,8 @@ export const VolunteerDashboard: React.FC = () => {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {members.map((member) => {
                               const isReplaced = member.attendanceStatus === 'REPLACED';
-                              const isMemberPresent = member.attendanceStatus === 'PRESENT' || member.attendanceStatus === 'LATE';
+                              const isMemberPresent = member.attendanceStatus === 'PRESENT';
+                              const isMemberEditing = Boolean(editingMemberIds[member.id]);
 
                               return (
                                 <div
@@ -595,7 +726,7 @@ export const VolunteerDashboard: React.FC = () => {
                                       ? 'rgba(148,163,184,0.2)'
                                       : isMemberPresent
                                       ? 'rgba(5,150,105,0.25)'
-                                      : 'var(--border-default)',
+                                      : 'rgba(239,68,68,0.25)',
                                     opacity: isReplaced ? 0.65 : 1,
                                   }}
                                 >
@@ -606,7 +737,7 @@ export const VolunteerDashboard: React.FC = () => {
                                           <span>{member.name}</span>
                                           {member.isLead && (
                                             <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-sky-500/15 text-sky-600 border border-sky-500/30">
-                                              Team Lead
+                                              Lead
                                             </span>
                                           )}
                                           {member.isReplacementMember && (
@@ -621,24 +752,10 @@ export const VolunteerDashboard: React.FC = () => {
 
                                       {/* Member Status Badge */}
                                       <span
-                                        className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
                                         style={{
-                                          backgroundColor:
-                                            member.attendanceStatus === 'PRESENT'
-                                              ? 'rgba(5,150,105,0.15)'
-                                              : member.attendanceStatus === 'LATE'
-                                              ? 'rgba(217,119,6,0.15)'
-                                              : member.attendanceStatus === 'REPLACED'
-                                              ? 'rgba(148,163,184,0.2)'
-                                              : 'rgba(239,68,68,0.15)',
-                                          color:
-                                            member.attendanceStatus === 'PRESENT'
-                                              ? '#059669'
-                                              : member.attendanceStatus === 'LATE'
-                                              ? '#d97706'
-                                              : member.attendanceStatus === 'REPLACED'
-                                              ? '#64748b'
-                                              : '#ef4444',
+                                          backgroundColor: isMemberPresent ? '#059669' : isReplaced ? '#64748b' : '#ef4444',
+                                          color: '#ffffff',
                                         }}
                                       >
                                         {member.attendanceStatus}
@@ -658,47 +775,76 @@ export const VolunteerDashboard: React.FC = () => {
                                     )}
                                   </div>
 
-                                  {/* Member Level Quick Actions */}
+                                  {/* Member Level Interactive Controls */}
                                   {!isReplaced && (
-                                    <div className="flex items-center gap-1.5 pt-2 border-t" style={{ borderColor: 'var(--border-default)' }}>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleMarkStatus(reg.id, 'PRESENT', member.id, member.name)}
-                                        className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                                          member.attendanceStatus === 'PRESENT' ? 'bg-emerald-600 text-white' : 'border hover:bg-emerald-500/10 text-emerald-600'
-                                        }`}
-                                      >
-                                        <Check className="w-3 h-3" /> Present
-                                      </button>
+                                    <div className="pt-2 border-t" style={{ borderColor: 'var(--border-default)' }}>
+                                      {isMemberEditing ? (
+                                        /* Member Edit Mode */
+                                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                          <div className="flex items-center gap-1.5 flex-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleMarkStatus(reg.id, 'PRESENT', member.id, member.name)}
+                                              className="py-1 px-2.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 cursor-pointer shadow-sm"
+                                            >
+                                              <Check className="w-3.5 h-3.5" />
+                                              <span>Present</span>
+                                            </button>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => handleMarkStatus(reg.id, 'LATE', member.id, member.name)}
-                                        className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                                          member.attendanceStatus === 'LATE' ? 'bg-amber-600 text-white' : 'border hover:bg-amber-500/10 text-amber-600'
-                                        }`}
-                                      >
-                                        <Clock className="w-3 h-3" /> Late
-                                      </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleMarkStatus(reg.id, 'ABSENT', member.id, member.name)}
+                                              className="py-1 px-2.5 rounded-lg text-[11px] font-bold bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-1 cursor-pointer shadow-sm"
+                                            >
+                                              <X className="w-3.5 h-3.5" />
+                                              <span>Absent</span>
+                                            </button>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => handleMarkStatus(reg.id, 'ABSENT', member.id, member.name)}
-                                        className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                                          member.attendanceStatus === 'ABSENT' ? 'bg-rose-600 text-white' : 'border hover:bg-rose-500/10 text-rose-600'
-                                        }`}
-                                      >
-                                        <X className="w-3 h-3" /> Absent
-                                      </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => openReplaceModal(reg, member)}
+                                              className="py-1 px-2.5 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1 cursor-pointer shadow-sm"
+                                            >
+                                              <UserPlus className="w-3.5 h-3.5" />
+                                              <span>Replace</span>
+                                            </button>
+                                          </div>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => openReplaceModal(reg, member)}
-                                        className="py-1 px-2.5 rounded-lg text-[10px] font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all cursor-pointer flex items-center gap-1"
-                                        title="Replace this absent member with a new participant"
-                                      >
-                                        <UserPlus className="w-3 h-3" /> Replace
-                                      </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingMemberIds((prev) => ({ ...prev, [member.id]: false }))}
+                                            className="py-1 px-2 text-[10px] font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        /* Member Clean Marked Mode */
+                                        <div className="flex items-center justify-between">
+                                          {isMemberPresent ? (
+                                            <div className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 text-white flex items-center gap-1 shadow-sm shadow-emerald-600/20">
+                                              <Check className="w-3.5 h-3.5" />
+                                              <span>Present</span>
+                                            </div>
+                                          ) : (
+                                            <div className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-rose-600 text-white flex items-center gap-1 shadow-sm shadow-rose-600/20">
+                                              <X className="w-3.5 h-3.5" />
+                                              <span>Absent</span>
+                                            </div>
+                                          )}
+
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingMemberIds((prev) => ({ ...prev, [member.id]: true }))}
+                                            className="px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold text-slate-300 hover:bg-slate-500/10 cursor-pointer flex items-center gap-1 transition-all"
+                                            style={{ borderColor: 'var(--border-default)', backgroundColor: 'var(--surface-raised)' }}
+                                            title="Edit member attendance or replace"
+                                          >
+                                            <Edit2 className="w-3 h-3 text-indigo-500" />
+                                            <span>Edit</span>
+                                          </button>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -723,7 +869,7 @@ export const VolunteerDashboard: React.FC = () => {
                 Live Round Stage Evaluation Progression
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Track round completion for attending teams. Only active participants from the roster are eligible for round qualification.
+                Track round completion for attending teams. Only active present participants from the roster are eligible for scoring.
               </p>
             </div>
 
@@ -747,7 +893,7 @@ export const VolunteerDashboard: React.FC = () => {
                       </td>
 
                       <td className="p-3.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                           reg.attendance?.attended ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'
                         }`}>
                           {reg.attendance?.attended ? 'Present' : 'Absent'}
@@ -797,13 +943,13 @@ export const VolunteerDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 4: EVENT TIMELINE & ROSTER INFO */}
+        {/* TAB 4: EVENT TIMELINE & ASSIGNMENT */}
         {activeTab === 'SCHEDULE' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="p-6 rounded-2xl border space-y-4" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-indigo-500" />
-                <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Event Agenda & Attendance Checkpoints</h3>
+                <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Event Agenda & Operations Schedule</h3>
               </div>
 
               <div className="space-y-3">
@@ -812,7 +958,7 @@ export const VolunteerDashboard: React.FC = () => {
                     <div>
                       <div className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{item.activity}</div>
                       <div className="text-[11px] text-slate-400 mt-0.5">{item.time} • {item.venue}</div>
-                      <div className="text-[10px] text-slate-400 mt-1">Lead: {item.responsiblePerson}</div>
+                      <div className="text-[10px] text-slate-400 mt-1">Responsible: {item.responsiblePerson}</div>
                     </div>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-600">
                       {item.status}
@@ -825,23 +971,31 @@ export const VolunteerDashboard: React.FC = () => {
             <div className="p-6 rounded-2xl border space-y-4" style={{ backgroundColor: 'var(--surface-base)', borderColor: 'var(--border-default)' }}>
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Roster Protocol & Guidelines</h3>
+                <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>My Volunteer Duty Assignment</h3>
               </div>
 
-              <div className="space-y-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                <div className="p-3.5 rounded-xl border" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
-                  <div className="font-bold text-emerald-500 mb-1">1. Member Replacement Policy</div>
-                  If a team member has an emergency, use the <strong>Replace</strong> button. The replacement participant's details immediately become active for attendance, scheduling, and certificate issuance.
+              <div className="p-4 rounded-xl border space-y-2 text-xs" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-semibold">Private Volunteer ID:</span>
+                  <span className="font-mono font-bold text-indigo-500">{myVolunteerId}</span>
                 </div>
-
-                <div className="p-3.5 rounded-xl border" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
-                  <div className="font-bold text-amber-500 mb-1">2. Incomplete Squads</div>
-                  Teams must meet the minimum size requirement ({activeEvent?.teamSizeMin || 2} members) to qualify for jury scoring and final awards.
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-semibold">Assigned Duty Role:</span>
+                  <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{myAssignment?.role || 'Attendance & QR Verification'}</span>
                 </div>
-
-                <div className="p-3.5 rounded-xl border" style={{ backgroundColor: 'var(--surface-raised)', borderColor: 'var(--border-default)' }}>
-                  <div className="font-bold text-indigo-500 mb-1">3. Organiser Finalization</div>
-                  After the check-in window closes, the organiser locks the active participant roster to freeze panel allocations and evaluation matrices.
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-semibold">Check-in Location:</span>
+                  <span className="text-amber-500 font-bold">{myAssignment?.assignedLocation || 'Main Foyer Entrance Desk'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-semibold">Time Slot:</span>
+                  <span className="text-sky-500 font-mono">{myAssignment?.timeSlot || '08:30 AM - 01:00 PM'}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t" style={{ borderColor: 'var(--border-default)' }}>
+                  <span className="text-slate-400 font-semibold">Duty Status:</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600">
+                    {myAssignment?.status || 'CHECKED_IN'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -891,14 +1045,14 @@ export const VolunteerDashboard: React.FC = () => {
               </div>
 
               {replaceError && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   <span>{replaceError}</span>
                 </div>
               )}
 
               {replaceSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
                   <span>{replaceSuccess}</span>
                 </div>
