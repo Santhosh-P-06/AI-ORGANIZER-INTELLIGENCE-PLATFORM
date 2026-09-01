@@ -22,10 +22,10 @@ export async function POST(request: Request) {
   console.log(`[Registration] Registration created successfully: ${registrationId}`);
 
   // --- n8n Registration Confirmation Webhook ---
-  // Default to localhost webhook if environment variable is not defined
+  // Default to n8n Cloud webhook if environment variable is not defined
   const n8nWebhookUrl =
     process.env.N8N_REGISTRATION_WEBHOOK_URL ||
-    'http://localhost:5678/webhook/registration-confirmation';
+    'https://santhoshp.app.n8n.cloud/webhook/registration-confirmation';
 
   if (n8nWebhookUrl) {
     // Look up the event details for the webhook payload

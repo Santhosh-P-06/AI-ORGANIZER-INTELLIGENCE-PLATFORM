@@ -9,7 +9,7 @@ Set these in `.env.local`:
 ```env
 APP_URL="http://localhost:3000"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
-N8N_BASE_URL="http://localhost:5678"
+N8N_BASE_URL="https://santhoshp.app.n8n.cloud"
 N8N_WEBHOOK_SECRET="change_me"
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ai_event_organiser"
 ```

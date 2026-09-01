@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   const webhookUrl =
     process.env.N8N_PANEL_ALLOCATION_WEBHOOK_URL ||
-    'http://localhost:5678/webhook/panel-allocation';
+    'https://santhoshp.app.n8n.cloud/webhook/panel-allocation';
 
   console.log(`[PanelAllocation] Publishing ${allocations.length} allocations for event: ${eventName}`);
 

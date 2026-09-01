@@ -1088,7 +1088,7 @@ export async function POST(req: Request) {
                 <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1.5">
                   <div className="font-bold text-slate-200">Webhook Target Endpoint:</div>
                   <code className="block bg-slate-950 p-2 rounded text-indigo-300 font-mono">
-                    POST http://localhost:5678/webhook/dispatch-certificate
+                    POST https://santhoshp.app.n8n.cloud/webhook/dispatch-certificate
                   </code>
                 </div>
               </div>
