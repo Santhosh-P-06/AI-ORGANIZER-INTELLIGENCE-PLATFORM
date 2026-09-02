@@ -1,0 +1,181 @@
+{
+  "name": "n8n Smart Certificate Mailer Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "certificate-mailer",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Certificate Mailer",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [180, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json;\nconst campaignId = payload.campaignId || `camp_${Date.now()}`;\nconst eventId = payload.eventId || '';\nconst eventName = payload.eventName || 'Academic Event';\nconst templateSubject = payload.subject || 'Your Certificate - {{event_name}}';\nconst templateMessage = payload.message || 'Hi {{name}},\\n\\nCongratulations on participating in {{event_name}}.\\n\\nPlease find your certificate attached.\\n\\nBest regards,\\nEvent Organizing Team';\nconst rawRecipients = payload.recipients || [];\n\nreturn rawRecipients.map((rec, index) => {\n  const name = rec.name || 'Participant';\n  const email = rec.email || '';\n  const fileName = rec.fileName || `${name}.pdf`;\n  const fileUrl = rec.fileUrl || '';\n\n  const personalizedSubject = templateSubject\n    .replace(/\\{\\{name\\}\\}/g, name)\n    .replace(/\\{\\{event_name\\}\\}/g, eventName);\n\n  const personalizedMessage = templateMessage\n    .replace(/\\{\\{name\\}\\}/g, name)\n    .replace(/\\{\\{event_name\\}\\}/g, eventName);\n\n  return {\n    json: {\n      index,\n      campaignId,\n      eventId,\n      eventName,\n      name,\n      email,\n      fileName,\n      fileUrl,\n      subject: personalizedSubject,\n      message: personalizedMessage\n    }\n  };\n});"
+      },
+      "id": "prepare-recipients",
+      "name": "Code: Prepare Recipients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 240]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "loop-recipients",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [660, 240]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.fileUrl }}",
+        "responseFormat": "file",
+        "options": {}
+      },
+      "id": "download-pdf",
+      "name": "HTTP: Download Certificate PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 180],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.message }}",
+        "attachmentsBinary": "data",
+        "options": {}
+      },
+      "id": "gmail-send",
+      "name": "Gmail: Send Attached PDF",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1140, 180],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_URL || 'http://localhost:3000' }}/api/n8n/webhook/certificate.generated",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-n8n-secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET || 'certificate_secret_2026' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ campaignId: $json.campaignId, eventId: $json.eventId, recipientEmail: $json.email, fileName: $json.fileName, status: $node[\"Gmail: Send Attached PDF\"].error ? \"FAILED\" : \"SENT\", error: $node[\"Gmail: Send Attached PDF\"].error?.message || null }) }}"
+      },
+      "id": "callback-nextjs",
+      "name": "HTTP: Callback Status to Next.js",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst failedFiles = [];\nlet success = 0;\nlet failed = 0;\n\nfor (const item of items) {\n  const data = item.json;\n  if (data.status === 'SENT' || !data.error) {\n    success++;\n  } else {\n    failed++;\n    failedFiles.push({\n      fileName: data.fileName || 'unknown.pdf',\n      email: data.email || 'unknown@domain.com',\n      error: data.error || 'Gmail delivery error'\n    });\n  }\n}\n\nreturn [\n  {\n    json: {\n      total: success + failed,\n      success,\n      failed,\n      failedFiles\n    }\n  }\n];"
+      },
+      "id": "final-summary",
+      "name": "Code: Final Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Webhook: Certificate Mailer": {
+      "main": [
+        [
+          {
+            "node": "Code: Prepare Recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Prepare Recipients": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Download Certificate PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code: Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Download Certificate PDF": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Send Attached PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Send Attached PDF": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Callback Status to Next.js",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Callback Status to Next.js": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

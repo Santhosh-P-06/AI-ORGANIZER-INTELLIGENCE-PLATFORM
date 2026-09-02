@@ -241,6 +241,43 @@ export interface Registration {
   certificateStatus?: 'NOT_ELIGIBLE' | 'ELIGIBLE' | 'GENERATED' | 'SENT' | 'DELIVERED';
 }
 
+export interface CertificateCampaignRecipient {
+  id: string;
+  campaignId: string;
+  eventId: string;
+  name: string;
+  email: string;
+  fileName: string;
+  fileUrl?: string;
+  storageKey?: string;
+  status: 'READY' | 'INVALID' | 'PENDING' | 'SENDING' | 'SENT' | 'FAILED';
+  invalidReason?: string;
+  error?: string;
+  sentAt?: string;
+}
+
+export interface CertificateCampaign {
+  id: string;
+  eventId: string;
+  eventName: string;
+  organizerId?: string;
+  subject: string;
+  message: string;
+  total: number;
+  sent: number;
+  failed: number;
+  pending: number;
+  status: 'DRAFT' | 'UPLOADING' | 'READY' | 'SENDING' | 'COMPLETED' | 'FAILED';
+  failedFiles: Array<{
+    fileName: string;
+    email: string;
+    error: string;
+  }>;
+  createdAt: string;
+  completedAt?: string;
+  recipients?: CertificateCampaignRecipient[];
+}
+
 export interface CandidateBatchUploadItem {
   id: string;
   name: string;

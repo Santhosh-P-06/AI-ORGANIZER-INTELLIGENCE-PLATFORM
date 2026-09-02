@@ -111,7 +111,41 @@ create table if not exists automation_runs (
   completed_at timestamptz
 );
 
+create table if not exists certificate_campaigns (
+  id text primary key,
+  event_id text not null references events(id) on delete cascade,
+  event_name text not null,
+  organizer_id text references users(id),
+  subject text not null,
+  message text not null,
+  total integer not null default 0,
+  sent integer not null default 0,
+  failed integer not null default 0,
+  pending integer not null default 0,
+  status text not null default 'DRAFT',
+  failed_files jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+
+create table if not exists certificate_recipients (
+  id text primary key,
+  campaign_id text not null references certificate_campaigns(id) on delete cascade,
+  event_id text not null references events(id) on delete cascade,
+  name text not null,
+  email text not null,
+  file_name text not null,
+  file_url text,
+  storage_key text,
+  status text not null default 'PENDING',
+  error text,
+  sent_at timestamptz
+);
+
 create index if not exists idx_registrations_event_id on registrations(event_id);
 create index if not exists idx_certificates_event_id on certificates(event_id);
+create index if not exists idx_certificate_campaigns_event_id on certificate_campaigns(event_id);
+create index if not exists idx_certificate_recipients_campaign_id on certificate_recipients(campaign_id);
+create index if not exists idx_certificate_recipients_email on certificate_recipients(email);
 create index if not exists idx_n8n_webhook_events_topic on n8n_webhook_events(topic);
 create index if not exists idx_automation_runs_topic on automation_runs(topic);

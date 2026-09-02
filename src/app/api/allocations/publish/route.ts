@@ -45,11 +45,18 @@ export async function POST(request: Request) {
 
     const payload = {
       name: participantName,
+      studentName: participantName,
+      leadStudentName: participantName,
       email: participantEmail,
+      teamName: allocation.teamName || '',
       eventName: eventName,
+      eventTitle: eventName,
       panel: panel,
+      panelName: panel,
       panelVenue: panelVenue,
+      room: panelVenue,
       reportingTime: reportingTime,
+      timeSlot: reportingTime,
     };
 
     console.log(`[PanelAllocation] Sending payload to n8n for ${participantName} (${participantEmail}):`, payload);

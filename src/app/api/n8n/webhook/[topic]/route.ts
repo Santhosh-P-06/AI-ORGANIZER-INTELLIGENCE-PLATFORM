@@ -32,6 +32,34 @@ export async function POST(
 
   const { topic } = await params;
   const payload = await request.json().catch(() => ({}));
+
+  // Handle certificate delivery status updates from n8n
+  if (topic === 'certificate.generated' || topic === 'certificate.dispatched') {
+    try {
+      const { updateRecipientStatus } = await import('@/server/campaigns');
+      const recipientEmail = payload.recipientEmail || payload.email || payload.toEmail;
+      const rawStatus = (payload.status || 'SENT').toUpperCase();
+      const status = rawStatus === 'FAILED' || rawStatus === 'ERROR' ? 'FAILED' : 'SENT';
+      const error = payload.error || payload.errorMessage || payload.reason;
+      const fileName = payload.fileName || payload.customFileName;
+      const campaignId = payload.campaignId;
+      const eventId = payload.eventId;
+
+      if (recipientEmail) {
+        await updateRecipientStatus({
+          campaignId,
+          eventId,
+          recipientEmail,
+          fileName,
+          status,
+          error,
+        });
+      }
+    } catch (campaignErr) {
+      console.warn('[n8n Webhook] Failed to update campaign recipient status:', campaignErr);
+    }
+  }
+
   const receipt = await recordAutomationEvent({
     topic,
     payload,
